@@ -1,0 +1,448 @@
+---
+title: "Web R"
+author: "Wayne Zhang"
+date: '2022-03-29'
+output: 
+  html_document: 
+    toc: yes
+---
+
+## Using online dataset
+
+```{r}
+# Here are the URLs! As you can see they're just normal strings
+csv_url <- "http://s3.amazonaws.com/assets.datacamp.com/production/course_1561/datasets/chickwts.csv"
+tsv_url <- "http://s3.amazonaws.com/assets.datacamp.com/production/course_3026/datasets/tsv_data.tsv"
+
+# Read a file in from the CSV URL and assign it to csv_data
+csv_data <- read.csv(csv_url)
+
+# Read a file in from the TSV URL and assign it to tsv_data
+tsv_data <- read.delim(tsv_url)
+
+# Examine the objects with head()
+head(csv_data)
+head(tsv_data)
+```
+
+* save online dataset to disk
+
+```{r}
+# Download the file with download.file()
+download.file(url = csv_url, destfile = "feed_data.csv")
+
+# Read it in with read.csv()
+csv_data <- read.csv("feed_data.csv")
+```
+
+* we can also save the file in RDS
+
+```{r}
+# Add a new column: square_weight
+csv_data$square_weight <- csv_data$weight^2
+
+# Save it to disk with saveRDS()
+saveRDS(object = csv_data, file = "modified_feed_data.RDS")
+
+# Read it back in with readRDS()
+modified_feed_data <- readRDS(file = "modified_feed_data.RDS")
+
+# Examine modified_feed_data
+str(modified_feed_data)
+```
+
+
+### API
+
+`pageviews`: An API Client for Wikimedia Traffic Data
+
+```{r}
+# Load pageviews
+library(pageviews)
+# Get the pageviews for "Hadley Wickham"
+hadley_pageviews <- article_pageviews(article = "Hadley Wickham")
+
+# Examine the resulting object
+str(hadley_pageviews)
+```
+
+* some API require access token
+
+`birdnik`: Connector for the Wordnik API
+
+```{r}
+api_key <- "d8ed66f01da01b0c6a0070d7c1503801993a39c126fbc3382"
+
+# Load birdnik
+library(birdnik)
+
+# Get the word frequency for "vector", using api_key to access it
+vector_frequency <- word_frequency(api_key, "vector")
+```
+
+## httr package
+
+request:
+
+* get: get something form internet
+* post: have something
+* head: similar to `head()`
+* delete: delete something from servers
+
+```{r}
+# Load the httr package
+library(httr)
+
+# Make a GET request to http://httpbin.org/get
+get_result <- GET("http://httpbin.org/get")
+
+# Print it to inspect it
+print(get_result)
+
+# Make a POST request to http://httpbin.org/post with the body "this is a test"
+post_result <- POST("http://httpbin.org/post", body = "this is a test")
+
+# Print it to inspect it
+post_result
+```
+
+* apply
+
+```{r}
+url <- "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia.org/all-access/all-agents/Hadley_Wickham/daily/20170101/20170102"
+
+# Make a GET request to url and save the results
+pageview_response <- GET(url)
+
+# Call content() to retrieve the data the server sent back
+pageview_data <- content(pageview_response)
+
+# Examine the results with str()
+str(pageview_data)
+```
+
+### Error code of readin url:
+
+If error code start from 200, 300, code is fine; if code is 400 means your side with problem; if code starts from 500 means the servers with problem.
+
+```{r}
+fake_url <- "http://google.com/fakepagethatdoesnotexist"
+
+# Make the GET request
+request_result <- GET(fake_url)
+
+# Check request_result
+if(http_error(request_result)){
+	warning("The request failed")
+} else {
+	content(request_result)
+}
+```
+
+### Adding query arguments
+
+```{r}
+# Construct a directory-based API URL to `http://swapi.co/api`,
+# looking for person `1` in `people`
+directory_url <- paste("http://swapi.co/api", "people", "1", sep = "/")
+
+# Make a GET call with it
+result <- GET(directory_url)
+```
+
+```{r}
+# Create list with nationality and country elements
+query_params <- list(nationality = "americans", 
+    country = "antigua")
+    
+# Make parameter-based call to httpbin, with query_params
+parameter_response <- GET("https://httpbin.org/get", query = query_params)
+
+# Print parameter_response
+print(parameter_response)
+```
+
+### Adding user name
+
+```{r}
+# Do not change the url
+url <- "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/all-agents/Aaron_Halfaker/daily/2015100100/2015103100"
+
+# Add the email address and the test sentence inside user_agent()
+server_response <- GET(url, user_agent("my@email.address"))
+server_response
+```
+
+### Rate limiting
+
+If we request too fast, the server will reject our request.
+
+```{r}
+# Construct a vector of 2 URLs
+urls <- c("http://httpbin.org/status/404", "http://httpbin.org/status/301")
+
+for(url in urls){
+    # Send a GET request to url
+    result <- GET(url)
+    # Delay for 5 seconds between requests
+    Sys.sleep(5) 
+}
+```
+
+* apply
+
+```{r}
+get_pageviews <- function(article_title){
+  url <- paste(
+    "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia/all-access/all-agents", 
+    article_title, 
+    "daily/2015100100/2015103100", 
+    sep = "/"
+  )   
+  response <- GET(url, user_agent("my@email.com this is a test")) 
+  # Is there an HTTP error?
+  if(http_error(response)){ 
+    # Throw an R error
+    stop("the request failed") 
+  }
+  # Return the response's content
+  content(response)
+}
+```
+
+## Handling JSON and XML
+
+* JSON
+
+    * 2 JSON structure:
+        * objects:  `{name:value}` e.g. `{"title": "A new hope", "year": 1997}`
+        * arrays: `[1977, 1980]`
+    * Remark:
+        * value could be: `"string"`, `2`, `true`, `null`
+
+
+```{r}
+# Get revision history for "Hadley Wickham"
+url <- "https://en.wikipedia.org/w/api.php?action=query&titles=Hadley%20Wickham&prop=revisions&rvprop=timestamp%7Cuser%7Ccomment%7Ccontent&rvlimit=5&format=json&rvdir=newer&rvstart=2015-01-14T17%3A12%3A45Z&rvsection=0"
+resp_json <- GET(url)
+
+# Check http_type() of resp_json
+http_type(resp_json)
+
+# Examine returned text with content()
+content(resp_json, as = "text")
+
+# Parse response with content()
+content(resp_json, as = "parsed")
+
+# Parse returned text with fromJSON()
+library(jsonlite)
+fromJSON(content(resp_json, as = "text"))
+```
+
+### Manipulating JSON
+
+
+
+```{r}
+library(jsonlite)
+movies_json <- '  [     {      "title" : "A New Hope",      "year" : 1977    },    {      "title" : "The Empire Strikes Back",      "year" : 1980    }  ]'
+fromJSON(movies_json, simplifyVector = F)
+fromJSON(movies_json, simplifyVector = T)
+
+# Load rlist
+library(rlist)
+
+# Examine output of this code
+str(content(resp_json), max.level = 4)
+
+# Store revision list
+revs <- content(resp_json)$query$pages$`41916270`$revisions
+
+# Extract the user element
+user_time <- list.select(revs, user, timestamp)
+
+# Print user_time
+user_time 
+
+# Stack to turn into a data frame
+list.stack(user_time)
+```
+
+```{r}
+# Load dplyr
+library(dplyr)
+
+# Pull out revision list
+revs <- content(resp_json)$query$pages$`41916270`$revisions
+
+# Extract user and timestamp
+revs %>%
+  bind_rows %>%           
+  select(user, timestamp)
+```
+
+* XML
+
+`<tagname> content </tagname>`
+
+e.g. 
+<jason>
+  <person type = "fictional">
+    <first_name>
+      Jason
+    </first_name>
+    <last_name>
+      Bourne
+    </last_name>
+    <occupation>
+      Spy
+    </occupation>
+  </person>
+</jason>
+
+elements of XML:
+    * markup(tag): structure of XML, 
+        * tag may contain attributes, e.g. `<movie, year = 1997> ... </movie>`
+    * content
+    
+```{r}
+# Load xml2
+library(xml2)
+
+url <- "https://en.wikipedia.org/w/api.php?action=query&titles=Hadley%20Wickham&prop=revisions&rvprop=timestamp%7Cuser%7Ccomment%7Ccontent&rvlimit=5&format=xml&rvdir=newer&rvstart=2015-01-14T17%3A12%3A45Z&rvsection=0"
+# Get XML revision history
+resp_xml <- GET(url)
+
+# Check response is XML 
+http_type(resp_xml)
+
+# Examine returned text with content()
+rev_text <- content(resp_xml, as = "text")
+rev_text
+
+# Turn rev_text into an XML document
+rev_xml <- read_xml(rev_text)
+
+# Examine the structure of rev_xml
+xml_structure(rev_xml)
+```
+
+### XPATH
+
+```{r}
+# Find all nodes using XPATH "/api/query/pages/page/revisions/rev"
+xml_find_all(rev_xml, "/api/query/pages/page/revisions/rev")
+
+# Find all rev nodes anywhere in document
+rev_nodes <- xml_find_all(rev_xml, "//rev")
+
+# Use xml_text() to get text from rev_nodes
+xml_text(rev_nodes)
+```
+
+```{r}
+# All rev nodes
+rev_nodes <- xml_find_all(rev_xml, "//rev")
+
+# The first rev node
+first_rev_node <- xml_find_first(rev_xml, "//rev")
+
+# Find all attributes with xml_attrs()
+xml_attrs(first_rev_node)
+
+# Find user attribute with xml_attr()
+xml_attr(first_rev_node, "user")
+
+# Find user attribute for all rev nodes
+xml_attr(rev_nodes, "user")
+
+# Find anon attribute for all rev nodes
+xml_attr(rev_nodes, "anon")
+```
+
+
+```{r}
+get_revision_history <- function(article_title){
+  # Get raw revision response
+  rev_resp <- rev_history(article_title, format = "xml")
+  
+  # Turn the content() of rev_resp into XML
+  rev_xml <- read_xml(content(rev_resp, "text"))
+  
+  # Find revision nodes
+  rev_nodes <- xml_find_all(rev_xml, "//rev")
+
+  # Parse out usernames
+  user <- xml_attr(rev_nodes, "user")
+  
+  # Parse out timestamps
+  timestamp <- readr::parse_datetime(xml_attr(rev_nodes, "timestamp"))
+  
+  # Parse out content
+  content <- xml_text(rev_nodes)
+  
+  # Return data frame 
+  data.frame(user = user,
+    timestamp = timestamp,
+    content = substr(content, 1, 40))
+}
+
+# Call function for "Hadley Wickham"
+get_revision_history(article_title = "Hadley Wickham")
+```
+
+
+## web scraping
+
+```{r}
+# Load rvest
+library(rvest)
+
+# Hadley Wickham's Wikipedia page
+test_url <- "https://en.wikipedia.org/wiki/Hadley_Wickham"
+
+# Read the URL stored as "test_url" with read_html()
+test_xml <- read_html(test_url)
+
+# Print test_xml
+test_xml
+
+# Use html_node() to grab the node with the XPATH stored as `test_node_xpath`
+node <- html_node(x = test_xml, xpath = test_node_xpath)
+
+# Print the first element of the result
+node[[1]]
+
+# Extract the name of table_element
+element_name <- html_name(table_element)
+
+# Print the name
+element_name
+
+
+# Extract the element of table_element referred to by second_xpath_val and store it as page_name
+page_name <- html_node(x = table_element, xpath = second_xpath_val)
+
+# Extract the text from page_name
+page_title <- html_text(page_name)
+
+# Print page_title
+page_title
+
+# Turn table_element into a data frame and assign it to wiki_table
+wiki_table <- html_table(table_element)
+
+# Print wiki_table
+wiki_table
+
+# Rename the columns of wiki_table
+colnames(wiki_table) <- c("key", "value")
+
+# Remove the empty row from wiki_table
+cleaned_table <- subset(wiki_table, !key == "" | !value == "")
+
+# Print cleaned_table
+cleaned_table
+```
+

@@ -1,0 +1,310 @@
+---
+title: "L3 Date/Time xts"
+author: "Wayne Zhang"
+date: "2/6/2022"
+output: 
+  html_document: 
+    toc: yes
+---
+
+```{r, include = FALSE}
+library(tidyverse)
+```
+
+
+# Date & Time
+
+## General Rule
+
+* ISO 8601: date "YYYY-MM-DD"; in R we need to use `as.Date` to convert chr to date;
+
+```{r}
+x <- "2013-04-03"
+str(x)
+x_date <- as.Date(x)  # data variable
+str(x_date)
+```
+
+* `anytime` package can convert any time format into ISO 8601
+
+```{r}
+library(anytime)
+sep_10_2009 <- c("September 10 2009", "2009-09-10", "10 Sep 2009", "09-10-2009")
+anytime(sep_10_2009)
+```
+
+* plot date variable
+
+```{r, echo=FALSE}
+releases <- structure(list(major = c(0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 
+0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 1L, 1L, 1L, 
+1L, 1L, 1L, 1L, 1L, 1L, 1L, 1L, 1L, 1L, 1L, 1L, 1L, 1L, 1L, 1L, 
+1L, 1L, 1L, 1L, 2L, 2L, 2L, 2L, 2L, 2L, 2L, 2L, 2L, 2L, 2L, 2L, 
+2L, 2L, 2L, 2L, 2L, 2L, 2L, 2L, 2L, 2L, 2L, 2L, 2L, 2L, 2L, 2L, 
+2L, 2L, 2L, 2L, 2L, 2L, 2L, 2L, 2L, 2L, 2L, 2L, 3L, 3L, 3L, 3L, 
+3L, 3L, 3L, 3L, 3L, 3L, 3L, 3L, 3L, 3L, 3L, 3L, 3L, 3L, 3L, 3L
+), minor = c(60L, 61L, 61L, 61L, 61L, 62L, 62L, 62L, 62L, 62L, 
+63L, 63L, 63L, 63L, 64L, 64L, 64L, 65L, 65L, 90L, 90L, 99L, 0L, 
+0L, 1L, 1L, 2L, 2L, 2L, 2L, 3L, 3L, 4L, 4L, 5L, 5L, 6L, 6L, 6L, 
+7L, 7L, 8L, 8L, 9L, 9L, 0L, 0L, 1L, 1L, 2L, 2L, 3L, 3L, 4L, 4L, 
+5L, 5L, 6L, 6L, 6L, 7L, 7L, 7L, 8L, 8L, 9L, 9L, 9L, 10L, 10L, 
+11L, 11L, 12L, 12L, 12L, 13L, 13L, 13L, 14L, 14L, 14L, 15L, 15L, 
+15L, 15L, 0L, 0L, 0L, 0L, 1L, 1L, 1L, 1L, 2L, 2L, 2L, 2L, 2L, 
+2L, 3L, 3L, 3L, 3L, 4L, 4L), patch = c(NA, NA, 1L, 2L, 3L, NA, 
+1L, 2L, 3L, 4L, NA, 1L, 2L, 3L, NA, 1L, 2L, NA, 1L, NA, 1L, NA, 
+NA, 1L, NA, 1L, NA, 1L, 2L, 3L, NA, 1L, NA, 1L, 0L, 1L, 0L, 1L, 
+2L, 0L, 1L, 0L, 1L, 0L, 1L, 0L, 1L, 0L, 1L, 0L, 1L, 0L, 1L, 0L, 
+1L, 0L, 1L, 0L, 1L, 2L, 0L, 1L, 2L, 0L, 1L, 0L, 1L, 2L, 0L, 1L, 
+0L, 1L, 0L, 1L, 2L, 0L, 1L, 2L, 0L, 1L, 2L, 0L, 1L, 2L, 3L, 0L, 
+1L, 2L, 3L, 0L, 1L, 2L, 3L, 0L, 1L, 2L, 3L, 4L, 5L, 0L, 1L, 2L, 
+3L, 0L, 1L), date = structure(c(10199, 10216, 10236, 10299, 10348, 
+10391, 10391, 10417, 10466, 10522, 10543, 10564, 10602, 10655, 
+10688, 10718, 10774, 10830, 10870, 10917, 10940, 10994, 11016, 
+11061, 11123, 11184, 11306, 11337, 11379, 11438, 11495, 11565, 
+11675, 11717, 11806, 11855, 11961, 11992, 12062, 12158, 12219, 
+12333, 12377, 12520, 12590, 12695, 12737, 12891, 12954, 13062, 
+13137, 13262, 13300, 13424, 13500, 13627, 13692, 13789, 13843, 
+13917, 13991, 14053, 14116, 14172, 14235, 14351, 14421, 14480, 
+14543, 14592, 14721, 14760, 14897, 14959, 15030, 15077, 15163, 
+15247, 15278, 15330, 15399, 15429, 15513, 15639, 15765, 15798, 
+15841, 15973, 16135, 16170, 16261, 16374, 16503, 16541, 16604, 
+16661, 16779, 16870, 16905, 16924, 16973, 17105, 17231, 17277, 
+17347), class = "Date"), datetime = structure(c(881225278, 882709762, 
+884392315, 889903555, 894095897, 897828980, 897862405, 900069225, 
+904294939, 909144521, 910967839, 912776788, 916059350, 920644034, 
+923491181, 926083543, 930918195, 935749769, 939211984, 943273514, 
+945260947, 949922690, 951814523, 955701858, 961058601, 966329658, 
+976875565, 979553881, 983191405, 988284587, 993206462, 999261952, 
+1008756894, 1012391855, 1020074486, 1024312833, 1033466791, 1036146797, 
+1042212874, 1050497887, 1055757279, 1065611639, 1069416021, 1081766198, 
+1087816179, 1096899878, 1100528190, 1113863193, 1119259633, 1128594134, 
+1135074921, 1145875040, 1149150333, 1159870504, 1166435363, 1177407703, 
+1183029426, 1191402173, 1196086444, 1202469005, 1208850329, 1214207072, 
+1219654436, 1224494641, 1229936597, 1239957168, 1246018257, 1251102154, 
+1256547742, 1260786504, 1271923881, 1275293425, 1287132117, 1292490724, 
+1298632039, 1302683487, 1310117828, 1317366356, 1320048549, 1324541418, 
+1330503010, 1333091765, 1340348984, 1351235476, 1362126509, 1364973156, 
+1368688293, 1380093069, 1394093553, 1397113870, 1404976269, 1414743092, 
+1425888740, 1429168413, 1434611704, 1439536398, 1449735188, 1457597745, 
+1460649578, 1462259608, 1466493698, 1477901595, 1488788191, 1492758885, 
+1498806251), class = c("POSIXct", "POSIXt"), tzone = "UTC"), 
+    time = structure(c(31678, 47362, 1915, 69955, 28697, 46580, 
+    80005, 40425, 32539, 43721, 52639, 47188, 46550, 52034, 47981, 
+    48343, 44595, 37769, 43984, 44714, 44947, 41090, 32123, 31458, 
+    31401, 32058, 37165, 37081, 45805, 41387, 38462, 45952, 36894, 
+    43055, 36086, 40833, 36391, 37997, 56074, 46687, 35679, 40439, 
+    43221, 38198, 40179, 51878, 51390, 80793, 34033, 37334, 38121, 
+    38240, 30333, 36904, 35363, 34903, 40626, 32573, 51244, 40205, 
+    27929, 27872, 32036, 33841, 32597, 30768, 43857, 30154, 32542, 
+    37704, 29481, 29425, 31317, 33124, 40039, 30687, 34628, 25556, 
+    29349, 29418, 29410, 26165, 25784, 25876, 30509, 25956, 25893, 
+    25869, 29553, 25870, 25869, 29492, 29540, 26013, 26104, 25998, 
+    29588, 29745, 57578, 26008, 26498, 29595, 29791, 26085, 25451
+    ), class = c("hms", "difftime"), units = "secs"), type = c("patch", 
+    "minor", "patch", "patch", "patch", "minor", "patch", "patch", 
+    "patch", "patch", "minor", "patch", "patch", "patch", "minor", 
+    "patch", "patch", "minor", "patch", "minor", "patch", "minor", 
+    "major", "patch", "minor", "patch", "minor", "patch", "patch", 
+    "patch", "minor", "patch", "minor", "patch", "minor", "patch", 
+    "minor", "patch", "patch", "minor", "patch", "minor", "patch", 
+    "minor", "patch", "major", "patch", "minor", "patch", "minor", 
+    "patch", "minor", "patch", "minor", "patch", "minor", "patch", 
+    "minor", "patch", "patch", "minor", "patch", "patch", "minor", 
+    "patch", "minor", "patch", "patch", "patch", "patch", "minor", 
+    "patch", "minor", "patch", "patch", "minor", "patch", "patch", 
+    "minor", "patch", "patch", "minor", "patch", "patch", "patch", 
+    "major", "patch", "patch", "patch", "minor", "patch", "patch", 
+    "patch", "minor", "patch", "patch", "patch", "patch", "patch", 
+    "minor", "patch", "patch", "patch", "minor", "patch")), class = c("tbl_df", 
+"tbl", "data.frame"), row.names = c(NA, -105L), .Names = c("major", 
+"minor", "patch", "date", "datetime", "time", "type"), spec = structure(list(
+    cols = structure(list(major = structure(list(), class = c("collector_integer", 
+    "collector")), minor = structure(list(), class = c("collector_integer", 
+    "collector")), patch = structure(list(), class = c("collector_integer", 
+    "collector")), date = structure(list(format = ""), .Names = "format", class = c("collector_date", 
+    "collector")), datetime = structure(list(format = ""), .Names = "format", class = c("collector_datetime", 
+    "collector")), time = structure(list(format = ""), .Names = "format", class = c("collector_time", 
+    "collector")), type = structure(list(), class = c("collector_character", 
+    "collector"))), .Names = c("major", "minor", "patch", "date", 
+    "datetime", "time", "type")), default = structure(list(), class = c("collector_guess", 
+    "collector"))), .Names = c("cols", "default"), class = "col_spec"))
+```
+
+
+```{r}
+# Set the x axis to the date column
+ggplot(releases, aes(x = date, y = type)) +
+  geom_line(aes(group = 1, color = factor(major)))
+
+# Limit the axis to between 2010-01-01 and 2014-01-01
+ggplot(releases, aes(x = date, y = type)) +
+  geom_line(aes(group = 1, color = factor(major))) +
+  xlim(as.Date("2010-01-01"), as.Date("2014-01-01"))
+
+# Specify breaks every ten years and labels with "%Y"
+ggplot(releases, aes(x = date, y = type)) +
+  geom_line(aes(group = 1, color = factor(major))) +
+  scale_x_date(date_breaks = "10 years", date_labels = "%Y")
+```
+* as.POSIXct convert chr to time variable; mainly use `lubridate` package
+
+```{r}
+as.POSIXct("2010-10-01 12:12:00")
+as.POSIXct("2010-10-01 12:12:00", tz = "America/Los_Angeles") # setting time zone
+```
+
+## Lubridate
+
+* input date
+
+```{r}
+library(lubridate)
+
+# Parse x 
+x <- "2010 September 20th" # 2010-09-20
+ymd(x)
+
+# Parse y 
+y <- "02.01.2010"  # 2010-01-02
+dmy(y)
+
+# Parse z 
+z <- "Sep, 12th 2010 14:00"  # 2010-09-12T14:00
+mdy_hm(z) # h hour; m minute
+```
+
+* `x` has a weekd**a**y, followed by a **m**onth, **d**ay and **y**ear, then a 12-hour t**I**me and an am/**p**m indicator.
+
+```{r}
+# Specify an order string to parse x
+x <- "Monday June 1st 2010 at 4pm"
+parse_date_time(x, orders = "amdyIp")
+
+# Specify order to include both "mdy" and "dmy"
+two_orders <- c("October 7, 2001", "October 13, 2002", "April 13, 2003", 
+  "17 April 2005", "23 April 2017")
+parse_date_time(two_orders, orders = c("mdy", "dmy"))
+
+# Specify order to include "dOmY", "OmY" and "Y"
+short_dates <- c("11 December 1282", "May 1372", "1253")
+parse_date_time(short_dates, orders = c("dOmy", "OmY", "Y"))
+```
+
+* we can generate date varible from numeric variable using `make_date()` function
+
+* we can use month() to extract the month from date variable; similarly, we can also extract am() from time variable
+
+```{r}
+release_time <- releases$datetime
+# Examine the head() of the months of release_time
+head(month(release_time))
+
+# Extract the month of releases 
+month(release_time) %>% table()
+# Extract the year of releases
+year(release_time) %>% table()
+# Extract the weekday of release
+wday(release_time) %>% table()
+wday(release_time, label = T) %>% table()
+# yday is the number from 1:366
+yday(release_time) %>% table()
+
+# How often is the hour before 12 (noon)?
+mean(hour(release_time) < 12)
+
+# How often is the release in am?
+mean(am(release_time))
+```
+
+* we can round date using `round_date()` using to round date to the closest date; `ceiliing_date()`  and `floor_date()`; for specific need, specify the `unit` argument.
+
+```{r}
+r_3_4_1 <- ymd_hms("2016-05-03 07:13:28 UTC")
+
+# Round down to day
+floor_date(r_3_4_1, unit = "day")
+# Round to nearest 5 minutes
+round_date(r_3_4_1, unit = "5 minutes")
+# Round up to week
+ceiling_date(r_3_4_1, unit = "week")
+
+# Subtract r_3_4_1 rounded down to day
+r_3_4_1 - floor_date(r_3_4_1, unit = "day")
+```
+
+* like `diff`, we can also use `difftime()` to calculate the difference
+
+```{r}
+# The date of landing and moment of step
+date_landing <- mdy("July 20, 1969")
+moment_step <- mdy_hms("July 20, 1969, 02:56:15", tz = "UTC")
+
+# How many days since the first man on the moon?
+difftime(today(), date_landing, units = "day")
+
+# How many seconds since the first man on the moon?
+difftime(now(), moment_step, units = "secs")
+```
+
+
+# xts/zoo package
+
+## xts introduction
+
+* `xts` object is matrix indexed by date variable
+
+```{r}
+library(xts)
+# Create the object data using 5 random numbers
+data <- rnorm(5)
+
+# Create dates as a Date class object starting from 2016-01-01
+dates <- seq(as.Date("2016-01-01"), length = 5, by = "days")
+
+# Create hayek and add a new attribute called born
+hayek <- xts(x = data, order.by = dates)
+
+# Extract the core data of hayek
+coredata(hayek)
+
+# Extract the index of hayek
+index(hayek)
+```
+
+* we can convert `ts` object to `xts`
+
+```{r, include=FALSE}
+austres <- structure(c(13067.3, 13130.5, 13198.4, 13254.2, 13303.7, 13353.9, 
+13409.3, 13459.2, 13504.5, 13552.6, 13614.3, 13669.5, 13722.6, 
+13772.1, 13832, 13862.6, 13893, 13926.8, 13968.9, 14004.7, 14033.1, 
+14066, 14110.1, 14155.6, 14192.2, 14231.7, 14281.5, 14330.3, 
+14359.3, 14396.6, 14430.8, 14478.4, 14515.7, 14554.9, 14602.5, 
+14646.4, 14695.4, 14746.6, 14807.4, 14874.4, 14923.3, 14988.7, 
+15054.1, 15121.7, 15184.2, 15239.3, 15288.9, 15346.2, 15393.5, 
+15439, 15483.5, 15531.5, 15579.4, 15628.5, 15677.3, 15736.7, 
+15788.3, 15839.7, 15900.6, 15961.5, 16018.3, 16076.9, 16139, 
+16203, 16263.3, 16327.9, 16398.9, 16478.3, 16538.2, 16621.6, 
+16697, 16777.2, 16833.1, 16891.6, 16956.8, 17026.3, 17085.4, 
+17106.9, 17169.4, 17239.4, 17292, 17354.2, 17414.2, 17447.3, 
+17482.6, 17526, 17568.7, 17627.1, 17661.5), .Tsp = c(1971.25, 
+1993.25, 4), class = "ts")
+```
+
+
+```{r}
+# Convert austres to an xts object called au
+au <- as.xts(austres)
+
+# Then convert your xts object (au) into a matrix am
+am <- as.matrix(au)
+
+# Inspect the head of am
+head(am)
+
+# Convert the original austres into a matrix am2
+am2 <- as.matrix(austres)
+
+# Inspect the head of am2
+head(am2)
+```
+

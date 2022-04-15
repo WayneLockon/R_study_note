@@ -1,0 +1,167 @@
+---
+title: "Untitled"
+author: "Wayne Zhang"
+date: '2022-03-09'
+output: html_document
+---
+
+# Basic scraping
+
+```{r, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(rvest)
+```
+
+```{r}
+link <- "https://www.imdb.com/search/title/?title_type=feature&my_ratings=exclude&adult=include&num_votes=250000,"
+
+page <- read_html(link)
+```
+
+The information we need here is name, year, rating and the abstract.
+
+```{r}
+name <- page %>% 
+    html_nodes(".lister-item-header a") %>% 
+    html_text() # from SelectorGadget to get the nodes name
+year <- page %>% 
+    html_nodes(".text-muted.unbold") %>% 
+    html_text() %>% 
+    str_sub(-5, -2) %>% 
+    as.numeric()
+rating <- page %>% 
+    html_nodes(".ratings-imdb-rating strong") %>% 
+    html_text() %>% 
+    as.numeric()
+abstract <- page %>% 
+    html_nodes(".ratings-bar+ .text-muted") %>% 
+    html_text() %>% 
+    str_remove("\\n")
+
+imdb <- data.frame(year, name, rating, abstract) %>% 
+    arrange(desc(rating))
+
+knitr::kable(head(imdb))
+```
+
+## Scraping from the links
+
+The next step is we want the cast list of each movie. We ca get it from after click the movie name and it was contained in the Top cast.
+
+```{r}
+# the first step is to get the url from the name of movie
+# by observe the url of the page, we know that the url is "https://www.imdb.com" + herf
+movie_link <- page %>% 
+    html_nodes(".lister-item-header a") %>% # this part is same as name
+    html_attr("href") %>% 
+    str_replace("\\?ref_=adv_li_tt", "fullcredits?ref_=tt_cl_sm") %>% 
+    paste("https://www.imdb.com", ., sep = "")
+
+# we can not pipe read_html_again, because currently movie_link is a vector
+get_cast <- function(movie_link){
+    movie_html <- read_html(movie_link)
+    cast <- movie_html %>% 
+        html_nodes(".primary_photo+ td a") %>% 
+        html_text() %>% 
+        str_remove("\\n")
+    name <- movie_html %>% 
+        html_nodes(".parent a") %>% 
+        html_text()
+    data.frame(name = rep(name, length(cast)), cast)
+}
+
+cast <- data.frame(matrix(ncol = 2, nrow = 0))
+colnames(cast) <- c("name", "cast")
+for(i in movie_link){
+    cast <- rbind(cast, get_cast(i))
+}
+
+knitr::kable(cast %>% 
+                 group_by(name) %>% 
+                 summarise(first_cast = first(cast)))
+```
+
+## Scraping from multiple pages
+
+The next step we want to do is to scrapping all movies (previous we only scrap the first 50 movies)
+
+```{r}
+# new link: https://www.imdb.com/search/title/?title_type=feature&num_votes=250000,&my_ratings=exclude&adult=include&start=51&ref_=adv_nxt
+# previous link: https://www.imdb.com/search/title/?title_type=feature&my_ratings=exclude&adult=include&num_votes=250000,
+imdb2 <- data.frame(matrix(ncol = 3, nrow = 0))
+colnames(imdb2) <- c("name", "year", "rating")
+for(i in seq(1, 751, 50)){
+    link <- paste("https://www.imdb.com/search/title/?title_type=feature&num_votes=250000,&my_ratings=exclude&adult=include&start=",i , "&ref_=adv_nxt", sep = "")
+    page <- read_html(link)
+    name <- page %>% 
+        html_nodes(".lister-item-header a") %>% 
+        html_text() # from SelectorGadget to get the nodes name
+    year <- page %>% 
+        html_nodes(".text-muted.unbold") %>% 
+        html_text() %>% 
+        str_sub(-5, -2) %>% 
+        as.numeric()
+    rating <- page %>% 
+        html_nodes(".ratings-imdb-rating strong") %>% 
+        html_text() %>% 
+        as.numeric()
+    imdb2 <- rbind(imdb2, data.frame(year, name, rating))
+}
+
+knitr::kable(tail(imdb2, 20))
+```
+
+## Scraping table
+
+```{r}
+link <- "https://www.patriotsoftware.com/blog/accounting/average-cost-living-by-state/"
+page <- read_html(link)
+
+price_chart <- page %>% 
+    html_nodes("table") %>% 
+    html_table()
+
+knitr::kable(head(price_chart))
+```
+
+```{r}
+# another example
+wiki_link <- "https://en.wikipedia.org/wiki/List_of_apple_cultivars"
+wiki_page <- read_html(wiki_link)
+
+# Table of apples
+table_apple <- wiki_page %>% 
+    html_nodes("table#wikitable.sortable.jquery-tablesorter") %>% 
+    html_table() # here it return a empty list
+# the reason is because the css framework, wiki_page is different than we see in wiki page
+# the solution is to check the tag from wiki_page directly
+
+wiki_page %>% 
+    html_nodes("table")
+ 
+# and we know the second one is what we want
+ 
+table_apple <- wiki_page %>% 
+    html_nodes("table") %>% 
+    .[2] %>% 
+    html_table() %>% 
+    .[[1]] %>% # we only use its first element
+    select(-Image)
+knitr::kable(head(table_apple))
+```
+
+
+# Application
+
+Scrap the data from OECD
+
+```{r}
+# link <- "https://data.oecd.org/price/inflation-cpi.htm"
+# page <- read_html(link)
+# 
+# page %>%
+#     html_nodes(".indicator-group-navigation-list :nth-child(1)") %>%
+#     html_attr("data-indicator")
+# data <- read.csv("https://stats.oecd.org/sdmx-json/data/DP_LIVE/.CPIFORECAST.../OECD?contentType=csv&detail=code&separator=comma&csv-lang=en")
+```
+
