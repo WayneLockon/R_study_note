@@ -1,0 +1,151 @@
+---
+title: "Time series review"
+author: "Wayne Zhang"
+date: '2022-03-29'
+output: html_document
+---
+
+```{r, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(haven)
+library(FinCal)
+library(Statamarkdown)
+```
+
+# Core Model
+
+* Autoregressive (AR)
+
+$$y_t = \alpha + \phi_1 y_{t - 1} + \cdots + \phi_p y_{t - p} + e_t$$
+
+* Regression 
+
+$$y_t = \alpha + \delta_0 x_t + e_t$$
+
+* Distributed Lag (DL)
+
+$$y_t = \alpha + \delta_0 x_t + \delta_1 x_{t - 1} + \cdots + \delta_q x_{t - q} + e_t$$
+
+* Autoregressive-Distributed Lag(ADL)
+
+$$y_t = \alpha + \phi_1 y_{t - 1} + \cdots + \phi_p y_{t - p} + \delta_0 x_t + \delta_1x_{t - 1}+\cdots + \delta_q x_{t - q} + e_t$$
+
+**Remark**: The coefficients in the DL and ADL can be interpreted as multipliers. Multipliers are structural under exogeneity;
+
+## Standard Errors:
+
+Three methods:
+
+1. Classical (homoskedastic): **not used** in contemporary economics.
+2. Robust (Heteroskedastic): 
+    * Appropriate for AR and ADL;
+    * **Inappropriate** for  non-dynamic regression or DL.
+3. HAC (Newey-West):
+    * Important for regression or DL.
+
+**Remark**:
+
+* **Always** report coefficient estimates & standard errors; Reason: Standard errors convey degree of uncertainty -- always important
+* **Never** coefficient estimates & t-statistics; t-statistics concern testing hypothesis of a zero coefficient -- rarely of key interest
+
+# Application:
+
+## AR model
+
+Illustration: U.S. quarterly real GDP growth rates, post-war
+
+```{r ar_model1}
+gdp <- read_dta("/Users/waynezhang/Library/CloudStorage/OneDrive-UW-Madison/IOS-WIN/Econometric method/EMLearn/Software/R/study_R/time_series_21/gdp.dta")
+
+stata("use gdp\n reg gdp L(1/3).gdp, r", data.in = gdp)
+
+library(lmtest)
+library(sandwich)
+sample_gdp <- gdp$gdp
+mod_ar <- lm(sample_gdp ~ lag(sample_gdp, 1) + lag(sample_gdp, 2) + lag(sample_gdp, 3))
+coeftest(mod_ar, vcov. = vcovHC, type = "HC1")
+```
+
+```{r ar_model2}
+prices <- stata("use prices", data.out = T)
+
+stata("use prices\n gen return = 100*(sp500/L.sp500-1)\n reg return L(1/2).return ,r\n testparm L(1/2).return", data.in = prices)
+
+return <- (prices$sp500/lag(prices$sp500) - 1)*100
+mod_ar2 <- lm(return ~ lag(return, 1) + lag(return, 2))
+coeftest(mod_ar2, vcov. = vcovHC, type = "HC1")
+```
+
+
+## DL model
+
+Illustration: retail gasoline and crude oil prices
+
+
+```{r}
+stata("use prices\n 
+        gen dg = 100*(gasoline/L.gasoline - 1)\n 
+        gen db = 100*(brent/L.brent - 1) \n
+        reg dg db, r\n
+        newey dg db, lag(12)\n
+        newey dg L(0/6).db, lag(12)\n
+        newey dg L(0/5).d.db L6.db, lag(12)
+      ")
+# lag: set maximum lag order of autocorrelation
+dg = 100*(prices$gasoline/lag(prices$gasoline) - 1)
+db = 100*(prices$brent/lag(prices$brent) - 1)
+dat <- as.data.frame(na.omit(cbind(dg, db)))
+dg <- dat$dg
+db <- dat$db
+
+mod_dl <- lm(dg ~ db)
+coeftest(mod_dl, vcov. = vcovHC, type = "HC1")
+
+mod_dl2 <- lm(dg ~ db)
+coeftest(mod_dl, vcov. = NeweyWest(mod_dl2, lag = 12))
+
+dat <- dat %>% 
+    mutate(lag_db1 = lag(db),
+           lag_db2 = lag(lag_db1),
+           lag_db3 = lag(lag_db2),
+           lag_db4 = lag(lag_db3),
+           lag_db5 = lag(lag_db4),
+           lag_db6 = lag(lag_db5))
+formula <- "dg ~ db"
+for (i in 1:6){
+    formula <- paste0(formula, " + lag_db", i)
+}
+mod_dl2 <- lm(formula, dat)
+coeftest(mod_dl2, vcov. = NeweyWest(mod_dl2, lag = 12))
+```
+
+
+## ADL
+
+```{r}
+stata("use gdp\n 
+        gen inf = 400*(cpi/L.cpi-1)\n
+        gen dinf = d.inf\n
+        reg dinf L(1/4).dinf L(1/4).ur if time<=tq(2016q3), r")
+gdp <- stata("use gdp", data.out = T)
+gdp <- gdp %>% 
+    mutate(inf = 400*(cpi/lag(cpi)-1),
+           dinf = inf - lag(inf)) %>% 
+    filter(time < 227)
+
+formula <- "dinf ~ "
+for (i in 1:4){
+    formula <- paste0(formula, "lag_dinf", i, " + ")
+    gdp[, ncol(gdp) + 1] <- lag(gdp$dinf, i)
+    names(gdp)[ncol(gdp)] <- paste0("lag_dinf", i) 
+}
+formula <- substr(formula,1,nchar(formula)-3)
+for (i in 1:4){
+    formula <- paste0(formula, " + lag_ur", i)
+    gdp[, ncol(gdp) + 1] <- lag(gdp$ur, i)
+    names(gdp)[ncol(gdp)] <- paste0("lag_ur", i) 
+}
+mod_adl <- lm(formula, gdp)
+coeftest(mod_adl, vcov. = vcovHC, type = "HC1")
+```
+

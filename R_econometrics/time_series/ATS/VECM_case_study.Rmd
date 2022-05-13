@@ -1,0 +1,134 @@
+---
+title: "VECM model"
+author: "Weiheng Zhang"
+date: '2022-04-25'
+output: pdf_document
+---
+
+* Goal: To estimate the VEC model, to forecast the price of the gas and compare the predictability of VEC model with those of forecasts using AR/MA/ARMA model.
+
+* Data: 
+    * Crude Oil price (FRED/MCOILWTICO);
+    * US Regular conventional gas price: (FRED/GASREGCOVM)
+
+```{r setup, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE, tidy.opts = list(width.cutoff = 50), tidy = TRUE)
+library(FinMetric)
+library(xts)
+oil <- fred("MCOILWTICO", "1995-01-01", "2017-03-12") 
+gas <- fred("GASREGCOVM", "1995-01-01", "2017-03-12")
+
+loil <- as.xts(oil$MCOILWTICO, order.by = oil$date) %>% 
+    log() 
+lgas <- as.xts(gas$GASREGCOVM, order.by = gas$date) %>% 
+    log()
+```
+
+## (a) Create a single time series plot with two log prices logpGASt and logpOILt for the sample 1995M1-2017M4.
+
+```{r}
+# (a)
+par(mfrow = c(1, 1))
+plot(loil, type = "l", main = "WTI vs. Gas", col = "blue", ylim = c(-1, 5))
+lines(lgas, col = "red")
+```
+
+## (b) Perform unit root tests to determine whether logpGASt and logpOILt are I(0) or I(1).
+
+```{r}
+# (b) 
+library(urca)
+ur.ers(loil, type = "P-test", model = "trend") %>% summary()
+ur.ers(lgas, type = "P-test", model = "trend") %>% summary()
+
+# both series could be I(1) or more 
+
+doil <- diff(loil)
+dgas <- diff(lgas)
+
+ur.ers(doil, type = "P-test", model = "trend") %>% summary()
+ur.ers(dgas, type = "P-test", model = "trend") %>% summary()
+
+# now we cannot reject the null hypothesis that no unit root problem.
+
+par(mfrow=c(1,1))
+plot(doil, type='l', main="(log difference)WTI vs. (log difference)Gas", col="blue", ylim=c(-0.4, 0.4))
+lines(dgas, col="red")
+```
+
+## (c)  Determine the number of lags to include in cointegration analysis using Schwarz information criterion. Run the Johansen’s trace and maximum eigenvalue cointegration tests for ( logpGASt and logpOILt ) using the sample 1995M1-2010M12. Use time series plots from (a) as a guide to determine the specification of the deterministic components in the cointegration test (i.e. whether to use Case 2, Case 3, of Case 4 cointegration test).
+
+```{r}
+# (c)
+library(vars)
+y <- cbind(loil, lgas)
+colnames(y) <- c("log.wti", "log.gas")
+y <- na.trim(y)
+
+y <- y["1995/2010-12-31"]
+# determine number of lags to be included in cointegration test and in VEC model
+y_VAR_order <- VARselect(y, type = "const")
+y_VAR_order
+nlags <- y_VAR_order$selection["SC(n)"]
+nlags
+
+ca.jo(y, ecdet = "const", type = "trace", K = nlags, spec = "transitory") %>% 
+    summary()
+y.CA <- ca.jo(y, ecdet="const", type="eigen", K=nlags, spec="transitory")
+summary(y.CA)
+
+
+lttest(y.CA, r = 1)
+```
+
+The result of lttest which tests for the presence of the constant term in the cointegration relationship suggests case 2.
+
+## (d) Based on your results in (c), use the 1995M1-2010M12 sample to estimate a bivariate VEC model for logpGASt and logpOILt.
+
+
+```{r}
+# estimate unrestricted VEC model
+y.VEC <- cajorls(y.CA, r = 1)
+y.VEC
+```
+
+# (e) Are the adjustment parameters $\alpha_1$ and $\alpha_2$ in the estimated VEC model statistically significant? Are their signs consistent with error correction mechanism that moves the system back to the long run equilibrium, whenever there is a disruption and zt−1 is not zero?
+
+```{r}
+# to see t-statistics and p-values
+summary(y.VEC$rlm)
+```
+
+
+## 
+
+```{r}
+#Q.F
+
+# test for restricted adjustment parameters alpha
+rest.alpha <- matrix(c(1,0), c(2,1))
+y.CA.ralpha <- alrtest(y.CA, A=rest.alpha, r=1)
+summary(y.CA.ralpha)
+
+# Q.G
+
+# vec2varX supports restricted VEC models
+y.VAR <- vec2var(y.CA, r=1)
+# y.VAR.rest <- vec2var(y.CA, A=rest.alpha, r=1)
+
+# forecast using VAR in levels
+y.VAR.fcst <- predict(y.VAR, n.ahead=76, ci=0.95)
+par( mar=c(4,4,2,1), cex=0.75)
+plot(y.VAR.fcst)
+```
+
+
+
+
+
+
+
+
+
+
+

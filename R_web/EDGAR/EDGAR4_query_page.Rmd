@@ -1,0 +1,70 @@
+---
+title: "Webscrape4: Webscraping SEC query page"
+author: "Weiheng Zhang"
+date: '2022-04-30'
+output: html_document
+---
+
+```{r, message=FALSE, warning=FALSE}
+library(FinMetric)
+library(httr)
+library(xml2)
+library(rvest)
+```
+
+# Step 1: Define the parameters of the search
+
+Parameters:
+
+* action (required): By default should be set `getcompany`
+* CIK (required): Is the CIK number of the company you are searching;
+* type (optional): Allows filtering the type of form. For example if se to `10-k` only the 10-K fillings are returned;
+* dateb (optional): Will only return the fillings before a given date. The format is as forllows YYYYMMDD
+* owner (optional):  Is set to exclude by default and specifies owner ship. You may also set it to include and only.
+* start (optional): Is the starting index of the results. For example, if I have 100 results but want to start at 45 of 100, I would pass 45.
+* output (optional): Define returned data structure as either xml or normal html
+* count (optional): The number of results you want to see with you request, the max is 100 and if not set it will default to 40.
+
+```{r}
+endpoint <- "https://www.sec.gov/cgi-bin/browse-edgar"
+parameter_dic <- c("action=getcompany",
+                  "CIK=1265107",
+                  "type=10-k",
+                  "dateb=20190101",
+                  "owner=exclude",
+                  "start=",
+                  "output=",
+                  "count=100")
+
+url <- paste(endpoint, paste(parameter_dic, collapse = "&"), sep = "?")
+UA <- "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:93.0) Gecko/20100101 Firefox/93.0"
+page <- httr::GET(url, httr::add_headers(`Connection` = "keep-alive", `User-Agent` = UA)) %>% 
+    content() 
+
+url_table <- cbind(page %>% 
+    html_node(".tableFile2") %>% 
+    html_table(),
+    url = page %>% 
+    html_nodes("#documentsbutton") %>% 
+    html_attr("href") %>% 
+    {paste0("https://www.sec.gov/", .)})
+knitr::kable(url_table)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

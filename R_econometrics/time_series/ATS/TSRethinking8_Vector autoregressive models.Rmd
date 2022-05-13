@@ -1,0 +1,359 @@
+---
+title: "TSRethinking8 Vector autoregressive models"
+author: "Wayne Zhang"
+date: "10/9/2021"
+output:
+  html_document: 
+    toc: yes
+    toc_depth: 4
+    number_sections: true
+---
+\newcommand{\df}[1]{\textbf{Define #1}}
+\newcommand{\remark}{\textbf{Remark}}
+
+```{r package, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(fig.width = 8, fig.height = 4)
+rm(list=ls())  # remove variables
+library(mFilter)
+library(vars)
+library(FinCal)
+library(zoo)
+library(tidyverse)
+```
+
+# Vector autoregressive models
+
+## VAR(1)
+
+### Notation
+
+- To describe the use of multivariate techniques, we need to introduce new notation:
+    - Small letters denote a $(K \times 1)$ vector of random variables, where
+    
+$$\begin{eqnarray}
+\boldsymbol{y}_{t}=(y_{1,t}, \ldots ,y_{K,t})^{^{\prime }}
+\end{eqnarray}$$
+
+- The VAR model of order $p$ can then be written as,
+$$\boldsymbol{y}_t = A_1 \boldsymbol{y}_{t-1} + \ldots + A_p \boldsymbol{y}_{t-p} + CD_t + \boldsymbol{u}_t$$
+- where $A_j$ is a $(K\times K)$ coefficient matrix, for $j=\{ 1, \ldots , p\}$
+- $C$ is the coefficient matrix for deterministic regressors
+- $D_t$ is the matrix for deterministic regressors
+- $\boldsymbol{u}_t$ is a $(K\times 1)$ dimension vector of error terms
+- The vector of error terms are assumed to be white noise
+
+$$\begin{eqnarray}
+\mathbb{E} \left[ \boldsymbol{u}_t \right] ;=;0 \\
+\mathbb{E} \left[ \boldsymbol{u}_t \boldsymbol{u}_t^\prime \right] ;=; \Sigma_{\boldsymbol{u}} \; \text{which is positive definite}
+\end{eqnarray}$$
+
+- This VAR is termed a reduced-form representation, which differs to the structural VAR (SVAR) that is discussed later
+
+Example:
+
+- For simplicity, assume $K=2$, and $p=1$,
+$$\begin{eqnarray}
+\boldsymbol{y}_{t}= A_{1} \boldsymbol{y}_{t-1} + \boldsymbol{u}_{t}
+\end{eqnarray}$$
+- where $y_{t}$, $\mu$, $A_{1}$, and $\boldsymbol{u}_{t}$ are given as,
+$$\begin{eqnarray}
+\boldsymbol{y}_{t}=\left[
+\begin{array}{c} y_{1,t} \\ y_{2,t} \end{array}
+\right] , A_{1}=\left[
+\begin{array}{cc} \alpha_{11} ; \alpha_{12} \\ \alpha_{21} ; \alpha_{22} \end{array}
+\right] \textrm{ and } \boldsymbol{u}_{t}=\left[
+\begin{array}{c} u_{1,t} \\ u_{2,t} \end{array}
+\right]
+\end{eqnarray}$$
+- For example, assume the elements of $A_{1}$ are given as,
+$$\begin{eqnarray}
+\left[
+\begin{array}{c} y_{1,t} \\ y_{2,t} \end{array}
+\right] = \left[
+\begin{array}{cc} 0.5 ; 0 \\ 1 ; 0.2 \end{array}
+\right] \left[
+\begin{array}{c} y_{1,t-1} \\ y_{2,t-1} \end{array}
+\right] +\left[
+\begin{array}{c} u_{1,t} \\ u_{2,t} \end{array}
+\right]
+\end{eqnarray}$$
+- where after some matrix manipulations,
+$$\begin{eqnarray}
+y_{1,t} ;=;  0.5y_{1,t-1}+u_{1,t} \\
+y_{2,t} ;=; 1y_{1,t-1}+0.2y_{2,t-1}+u_{2,t}
+\end{eqnarray}$$
+
+- The above model suggests:
+    - $y_{2,t}$ depends on past values of itself and past values of $y_{1,t}$
+    - $y_{1,t}$ only depends on past values of itself
+    
+## VAR(p)
+
+
+$$\begin{eqnarray}
+Z_{t}=\Gamma_{0}+\Gamma_{1}Z_{t-1}+\Upsilon_{t}
+\end{eqnarray}$$
+where we have,
+$$\begin{eqnarray}
+Z_{t}=\left[
+\begin{array}{c} \boldsymbol{y}_{t} \\ \boldsymbol{y}_{t-1} \\ \vdots \\ \boldsymbol{y}_{t-p+1} \end{array}
+\right] , \hspace{1cm} \Gamma_0=\left[
+\begin{array}{c} \mu  \\ 0 \\ \vdots \\ 0 \end{array}
+\right] , \hspace{1cm} \Upsilon_{t} =\left[
+\begin{array}{c} \boldsymbol{u}_{t}  \\ 0 \\ \vdots \\ 0 \end{array}
+\right]
+\end{eqnarray}$$
+the matrix notation is
+$$\begin{eqnarray}
+\left[
+\begin{array}{c} \boldsymbol{y}_{t} \\ \boldsymbol{y}_{t-1} \\ \boldsymbol{y}_{t-2} \\ \vdots \\ \boldsymbol{y}_{t-p+1} \end{array}
+\right] =\left[
+\begin{array}{c} \mu \\ 0 \\ 0 \\ \vdots \\ 0 \end{array}
+\right] +\left[
+\begin{array}{ccccccc} A_{1} & A_{2} & \cdots & A_{p-1} & A_{p} \\ I & 0 & \cdots & 0 & 0 \\ 0 & I & \cdots & 0 & 0 \\ \vdots & \vdots & \ddots & \vdots & \vdots \\ 0 & 0 & \cdots & I & 0 \end{array}
+\right]
+\left[
+\begin{array}{c} \boldsymbol{y}_{t-1} \\ \boldsymbol{y}_{t-2} \\ \boldsymbol{y}_{t-3} \\ \vdots \\ \boldsymbol{y}_{t-p} \end{array}
+\right] +
+\left[
+\begin{array}{c} \boldsymbol{u}_{t} \\ 0 \\ 0 \\ \vdots \\ 0 \end{array}
+\right]
+\end{eqnarray}$$
+
+### Stationary condition of VAR
+
+The weakly stationary condition is the TS converges to mean, in one dimension case is $|\phi|<1$ for multi-demension case is eigenvalues less than one in absolute value.
+
+The eigenvalue defined by:
+
+$$|\Gamma_{1}-\lambda I|=0$$
+
+and the characteristic function of VAR model is 
+
+$$|I-\Gamma_{1}z|$$
+
+where the interpretation is reversed, as a stable stochastic process has characteristic roots that lie outside the unit circle.
+
+### Wold representation
+
+Just as the stable AR(p) model has a MA representation, the stable VAR(p) has a VMA representation - termed the Wold decomposition
+
+- Theorem states that every covariance-stationary time series can be written as the sum of two uncorrelated processes:
+
+    - deterministic component, $\kappa_{t}$, (which could be the mean)
+    
+    - infinite moving average representation of $\sum_{j=0}^{\infty }\theta_{j} \varepsilon_{t-j}$
+    
+- Hence,
+$$\begin{eqnarray}
+y_{t}=\sum_{j=0}^{\infty }\theta_{j} \varepsilon_{t-j}+\kappa_{t}
+\end{eqnarray}$$
+
+- where we assume $\theta_{0}=1$
+
+- $\sum_{j=0}^{\infty }|\theta_{j}|<\infty$
+
+- $\varepsilon_{t}$ is white noise
+
+**Example: VAR(1)**
+
+$$\boldsymbol{y}_{t}=\mu +A_{1}\boldsymbol{y}_{t-1}+\boldsymbol{u}_{t}$$
+
+Using the lag operator,
+
+$$(I-A_{1}L)\boldsymbol{y}_{t}=\mu +\boldsymbol{u}_{t}$$
+
+Using the expression, $(I-A_{1}L)=A(L)$ we can write,
+
+$$A(L)\boldsymbol{y}_{t}=\mu +\boldsymbol{u}_{t}$$
+
+Using the geometric rule:
+
+$$A(L)^{-1}=(I-A_{1}L)^{-1}=\sum_{j=0}^{p}A_{1}^{j}L^{j}\equiv B(L)=\sum_{j=0}^{\infty }B_{j}L^{j}$$
+
+$$\begin{eqnarray}
+\boldsymbol{y}_{t} =A(L)^{-1}\mu +A(L)^{-1}\boldsymbol{u}_{t} \\
+=B(L)\mu +B(L) \boldsymbol{u}_t \\
+=\varphi+\sum_{j=0}^{\infty }B_{j}\boldsymbol{u}_{t-j}
+\end{eqnarray}$$
+
+with $B_{0}=I$ and $\varphi=\left( \sum\limits_{j=0}^{\infty }B_{j}\right) \mu$.
+
+The MA coefficients, $B_{j}$, are derived from the relationship $I=B(L)A(L)$
+
+$$\begin{eqnarray}
+I&=&B(L)A(L) \\
+I &=&(B_{0}+B_{1}L+B_{2}L^{2}+ \ldots )(I-A_{1}L-A_{2}L^{2}- \ldots - A_{p}L^{p}) \\
+&=&[B_{0}+B_{1}L+B_{2}L^{2}+ \ldots ] \\
+&& -[B_{0}A_{1}L+B_{1}A_{1}L^{2}+B_{2}A_{1}L^{3}+ \ldots ] \\
+&& -[B_{0}A_{2}L^{2}+B_{1}A_{2}L^{3}+B_{2}A_{2}L^{4}+ \ldots] - \ldots \\
+&=&B_{0}+(B_{1}-B_{0}A_{1})L+(B_{2}-B_{1}A_{1}-B_{0}A_{2})L^{2}+ \ldots \\
+&& +\left(B_{p}-\sum_{j=1}^{i}B_{p-j}A_{j}\right) L^{p}+ \ldots
+\end{eqnarray}$$
+
+Solving for the relevant lags, we get:
+
+$$\begin{eqnarray}
+B_{0} &=&I   \\
+B_{1} &=&B_{0}A_{1} \\
+B_{2} &=&B_{1}A_{1}+B_{0}A_{2} \\
+\vdots & & \vdots \\
+B_{i} &=&\sum_{j=1}^{i}B_{i-j}A_{j}\hspace{1cm}\text{for }i=1,2, \ldots
+\end{eqnarray}$$
+
+### Moments
+
+empty
+
+
+### VAR in emperical study
+
+#### Test data
+
+```{r}
+# dat <- read.csv(file = "/Users/waynezhang/OneDrive - UW-Madison/IOS-WIN/Fall 2021/Econ 706/TimeSeries/LectureNotes/T10-var/blanchQua.csv")
+# gdp <- ts(dat$GDP, start = c(1948, 2), freq = 4)
+# une <- ts(dat$U, start = c(1948, 2), freq = 4)
+# plot(cbind(gdp, une))
+
+rgdp_growth <- fred("GDPC1", "1949-10-01", "2020-12-31")[, -1] %>% 
+    mutate(growth = 100*(price/lag(price) - 1)) %>% 
+    drop_na()
+uner <- fred("UNRATE", "1950-01-01", "2020-12-31")[, -1] %>% 
+  mutate(date2 = as.yearqtr(date)) %>% 
+  group_by(date2) %>% 
+  summarise(price2 = mean(price))
+
+rgdp2 <- ts(rgdp_growth$growth, start = c(1950, 1), freq = 4)
+uner2 <- ts(uner$price2, start = c(1950, 1), freq = 4)
+plot(cbind(rgdp2, uner2))
+
+# To consider the degree of persistence in the data we make use of the autocorrelation function.
+acf(rgdp2)
+pacf(rgdp2)
+acf(uner2)
+pacf(uner2)
+
+# eliminate uniroot case: Dickey-Fuller test
+# H0: The time series is non-stationary
+# H1: The time series is stationary.
+adf.une <- ur.df(uner2, type = "trend", selectlags = "AIC")
+summary(adf.une) #  p-value: 0.003342 < 0.05 thus, reject the null hypothesis
+```
+
+#### building model
+
+```{r}
+dat.bv <- cbind(rgdp2, uner2)
+colnames(dat.bv) <- c("gdp", "une")
+
+# order selection
+VARselect(dat.bv, lag.max = 12, type = "const") # const (constant) mean there is no trend but with constant term
+# for VAR model order as small as possible
+bv.est <- VAR(dat.bv, p = 2, type = "const", season = NULL, exogen = NULL)
+summary(bv.est)
+```
+
+As Roots of the characteristic polynomial:
+0.8877 0.4974 0.2289 0.2289 less than 1, we can say this system is stable.
+
+#### test the model
+
+```{r, fig.width = 8, fig.height = 6}
+# test the residuals are white noise, i.e. test the model fitness
+#  the null hypothesis specifies values for a vector of parameters that are thought of as being on an equal footing, & the alternative is that at least one parameter value is different from that specified by the null.
+bv.serial <- serial.test(bv.est, lags.pt = 12, type = "PT.asymptotic")
+bv.serial # p-value = 0.7274 in this case we accept the null hypothesis, i.e. the residuals are white noise
+plot(bv.serial, names = "gdp")
+plot(bv.serial, names = "une")
+```
+
+
+
+
+
+```{r}
+# To test for heteroscedasticity in the residuals we can perform a multivariate ARCH Lagrange-Multiplier test.
+
+bv.arch <- arch.test(bv.est, lags.multi = 12, multivariate.only = TRUE)
+bv.arch # Once again the p-value that is greater than 5% would indicate the absence of heteroscedasticity. Thus, here we obviously fall this test as 2021 covid 19 shocks.
+```
+
+```{r}
+#  To consider the distribution of the residuals, we could apply a normality test.
+bv.norm <- normality.test(bv.est, multivariate.only = TRUE)
+bv.norm # where the resulting p-value indicates that the residuals are **not** normally distributed
+```
+
+```{r, fig.width = 8, fig.height = 6}
+# to test for the structural break in the residuals we can apply a CUSUM test.
+bv.cusum <- stability(bv.est, type = "OLS-CUSUM")
+plot(bv.cusum) # where there does not appear to be a break in the respective confidence intervals.
+```
+
+#### Granger causality, IRFs and variance decompositions
+
+The test for Granger causality is formally implemented by means of a joint hypothesis test. Considers whether all the lags of the k'th variable in the system are jointly significantly different from zero
+
+the null hypothesis is no Granger causality.
+
+We are then able to test for Granger causality, where we note that the null hypothesis of no Granger causality is dismissed in both directions.
+
+```{r}
+bv.cause.gdp <- causality(bv.est, cause = "gdp")
+bv.cause.gdp # there is relationship
+
+# we can also test it by bootstrap
+bv.cause.gdp2 <- causality(bv.est, cause = "gdp", boot = T, boot.runs = 10000)
+bv.cause.gdp2
+
+
+bv.cause.une <- causality(bv.est, cause = "une")
+bv.cause.une
+```
+
+
+To generate impulse response functions to describe the reponse of output to an unemployment shock, we proceed as follows:
+
+```{r}
+irf.gdp <- irf(bv.est, impulse = "une", response = "gdp", 
+    n.ahead = 40)
+ggplot() +
+  geom_line(aes(x = 0:40, y = as.numeric(irf.gdp$irf[[1]]))) +
+  geom_line(aes(x = 0:40, y = as.numeric(irf.gdp$Lower[[1]])), linetype = "dashed", color = "red") +
+  geom_line(aes(x = 0:40, y = as.numeric(irf.gdp$Upper[[1]])), linetype = "dashed", color = "red") + 
+  xlab("time") +
+  ggtitle("Shock from unemployment")
+
+plot(irf.gdp, ylab = "ouput", main = "Shock from unemployment")
+
+# I do not know how to explain this positive relationship
+
+# then we can also plot this by bootstrap method:
+irf.gdp2 <- irf(bv.est, impulse = "une", response = "gdp", 
+    n.ahead = 40, boot = T)
+plot(irf.gdp2)
+```
+
+To generate the forecast error variance decompositions we make use of the `fevd` command, where we set the number of steps ahead to ten.
+
+```{r}
+bv.vardec <- fevd(bv.est, n.ahead = 10) # Forecast Error Variance Decomposition
+# Computes the forecast error variance decomposition of a VAR(p) for n.ahead steps.
+plot(bv.vardec)
+```
+
+#### Forecasting
+
+```{r}
+predictions <- predict(bv.est, n.ahead = 8, ci = 0.95)
+plot(predictions, names = "gdp")
+plot(predictions, names = "une")
+```
+
+These could also be displayed with the aid of fancharts for the forecasts.
+
+```{r}
+fanchart(predictions, names = "gdp")
+```
+

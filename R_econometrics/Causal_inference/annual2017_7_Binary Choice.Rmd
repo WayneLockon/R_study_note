@@ -1,0 +1,167 @@
+---
+title: "Causal Inference7"
+author: "Weiheng Zhang"
+date: '2022-04-23'
+output: 
+  pdf_document: 
+    toc: yes
+---
+
+```{r, message=FALSE, warning=FALSE}
+library(FinMetric)
+library(formatR)
+knitr::opts_chunk$set(tidy.opts=list(width.cutoff=60),
+                      tidy=TRUE,
+                      echo = TRUE)
+```
+
+
+# Binary Choice
+
+```{r}
+# loading dataset
+data("Hdma", package = "Ecdat")
+
+Hdma <- Hdma %>% 
+    mutate(deny_num = ifelse(deny == "no", 0, 1),
+           black_numb = ifelse(black == "no", 0, 1),
+           ccs = round(ccs, digits = 0))
+```
+
+
+## Linear Probability Model
+
+$$\begin{aligned}
+Y &= P(x) + e\\
+E[e|x] &= 0
+\end{aligned}$$
+
+```{r}
+# Baseline Model
+model_lpm1 <- lm(deny_num ~ dir, data = Hdma)
+coeftest(model_lpm1, vcov. = vcovHC, type = "HC1")
+
+ggplot(Hdma, aes(dir, deny_num)) +
+    geom_point() + 
+    geom_abline(slope = model_lpm1$coefficients[2],
+                intercept = model_lpm1$coefficients[1]) +
+    scale_y_continuous(breaks = c(0,1), limits = c(-0.5,1.5)) +
+    geom_hline(yintercept = 1, color = "red", lty = "dashed") +
+    geom_hline(yintercept = 0, color = "red", lty = "dashed") +
+    labs(x = "Debt to Income Ratio", y = "Mortgage Application Status")
+```
+
+The estimate of coefficient `dir` is .604. Doubling the loan payment to income ratio (an incrase by one unit) leads to an increase of the probability of loan denial by 60.4%.
+
+## Index model
+
+$$P[Y_i = 1|X_i] = G(X_i\beta)$$
+
+where $G$ is the link function and $X_i\beta$ is index. Link function could be normal distribution(Probit) or Logistics(Logit).
+
+```{r}
+model_logit <- glm(deny_num ~ dir + black,
+                   data = Hdma,
+                   family = binomial(link = "logit"))
+
+ggplot(data = Hdma,
+       aes(x = dir, y = deny_num)) +
+  geom_point() +
+  stat_smooth(method="glm", method.args=list(family=binomial(link="logit"))) +
+  scale_y_continuous(breaks = c(0,1), limits = c(-0.5,1.5)) +
+  geom_hline(yintercept = 1, color = "red", lty = "dashed") +
+  geom_hline(yintercept = 0, color = "red", lty = "dashed") +
+  labs(x = "Debt to Income Ratio", y = "Mortgage Application Denied?")
+
+# calculate Prob (Y = 1)
+```
+
+$$P(Y_i = 1) = \frac{1}{1 + exp(-(X'\beta + u))}$$
+
+```{r}
+value <- c(1, Hdma$dir[1], Hdma$black_numb[1])
+1/(1 + exp(-sum(value*coefficients(model_logit))))
+
+fitted(model_logit)[1]
+
+
+# likelihood ratio test: Similar to an F-test it checks whether all regressors in the model are together equal to zero. 
+lrtest(model_logit)
+# Pseudo R^2
+1 - model_logit$deviance/model_logit$null.deviance
+# Log-likelihood
+logLik(model_logit)
+```
+
+#### Fixed effect in index model
+
+```{r}
+model_logit2 <- glm(deny_num ~ dir + factor(ccs),
+                    data = Hdma,
+                    family = binomial(link = "logit"))
+
+# Predict power
+data.frame(dir = mean(Hdma$dir),
+           ccs = factor(rep(1:6))) %>% 
+    mutate(pred.prob = predict(model_logit2, newdata = .,
+                        type = "response"),
+           se = predict(model_logit2,newdata = .,
+                        type = "response", se = T)$se.fit,
+           ll = pred.prob - (1.96*se),
+           ul = pred.prob + (1.96*se)) %>% 
+    ggplot(data = ., aes(x = ccs, y = pred.prob)) +
+    geom_errorbar(aes(ymin = ll, ymax = ul),
+                  width = .2, color = "red") +
+    geom_point(fill = "black") +
+    labs(x = "Consumer's credit score",
+         y = "Predicted Probability (of loan denial)")
+
+```
+
+
+```{r}
+# Probit model
+model_probit <- glm(deny_num ~ dir + black,
+                    data = Hdma,
+                    family = binomial(link = "probit"))
+
+ggplot(data = Hdma,
+       aes(x = dir, y = deny_num)) +
+  geom_point() +
+  stat_smooth(method="glm", method.args=list(family=binomial(link="probit")),
+              se = F) +
+  scale_y_continuous(breaks = c(0,1), limits = c(-0.5,1.5)) +
+  geom_hline(yintercept = 1, color = "red", lty = "dashed") +
+  geom_hline(yintercept = 0, color = "red", lty = "dashed") +
+  labs(x = "Debt to Income Ratio", y = "Mortgage Application Status")
+```
+
+### Marginal Effects
+
+```{r}
+library(margins)
+# Average marginal effects (AME)
+margins(model_logit2)
+
+ggplot(data = summary(margins(model_logit))) +
+  geom_point(aes(factor, AME)) +
+  geom_errorbar(aes(x = factor, ymin = lower, ymax = upper), 
+                width = 0.2) +
+  labs(x = "")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,403 @@
+---
+title: "TSRethinking2 Change points and structural breaks"
+author: "Wayne Zhang"
+date: "10/9/2021"
+output:
+  html_document: 
+    toc: yes
+    toc_depth: 4
+    number_sections: true
+---
+\newcommand{\df}[1]{\textbf{Define #1}}
+\newcommand{\remark}{\textbf{Remark}}
+
+```{r package, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(fig.width = 8, fig.height = 4)
+rm(list=ls())  # remove variables
+library(changepoint) # changing point
+library(strucchange) # structural change
+library(tidyverse)
+library(lubridate)
+library(FinCal)
+set.seed(123)
+```
+
+```{r}
+dat <- tibble(
+    ar1 = arima.sim(model = list(ar = 0.8), n = 200),
+    ma1 = arima.sim(model = list(ma = 0.7), n = 200),
+    arma10 = arima.sim(model = list(ar  = 0.4), n = 200),
+    arma01 = arima.sim(model = list(ma = 0.5), n = 200),
+    arma11 = arima.sim(model = list(ar = 0.4, ma = 0.5), n = 200),
+    arma21 = arima.sim(model = list(ar = c(0.6,-0.2), ma = c(0.4)), n = 200)
+)
+```
+
+
+
+Dominant feature of many time series is that today's values are close to tomorrow's values
+
+# Autoregressive Models
+
+## AR(1)
+
+$$y_{t}=\phi y_{t-1}+\varepsilon_{t}$$
+$$\varepsilon_{t}\sim \mathsf{i.i.d.} \mathcal{N}(0,\sigma^{2})$$
+
+### Moment
+
+$$\begin{eqnarray}
+\mathbb{E}\left[ y_{t}\right] &=&0 \\
+\mathsf{var}[y_{t}] &=&\frac{\sigma^{2}}{1-\phi^2 } \\
+\mathsf{cov}[y_{t},y_{t-j}] &=&\phi^{j} \mathsf{var}[y_{t}] 
+\end{eqnarray}$$
+
+1. Mean
+$$\begin{equation}
+\mathbb{E}\left[ y_{t}\right] = \mathbb{E}\left[ \varepsilon_{t}+\phi \varepsilon_{t-1}+\phi^{2}\varepsilon_{t-2}+\phi^{3}\varepsilon_{t-3}+ \ldots \right] =0 
+\end{equation}$$
+
+2. Variance
+
+$$\begin{eqnarray}
+\gamma \left( 0\right) &=&\mathsf{var}\left[ y_{t}\right] =\mathbb{E}\big[ y_{t}-\mathbb{E}\left[ y_{t}\right] \big]^{2} \\ 
+&=&\mathbb{E}\left[ \varepsilon_{t}+\phi \varepsilon_{t-1}+\phi^{2}\varepsilon_{t-2}+\phi^{3}\varepsilon_{t-3}+ \ldots \right]^{2} \\
+&=&\mathsf{var}\left[ \varepsilon_{t}\right] +\phi ^{2}\mathsf{var}\left[ \varepsilon_{t-1}\right] +\phi^{4}\mathsf{var}\left[\varepsilon_{t-2}\right] +\phi^{6}\mathsf{var}\left[ \varepsilon_{t-3}\right] + \ldots \\
+&=&\left( 1+\phi^{2}+\phi^{4}+\phi^{6}+ \ldots \; \right) \sigma^{2} \\
+&=&\frac{1}{1-\phi^{2}}\sigma^{2}  
+\end{eqnarray}$$
+
+3. Covariance
+
+if $j = 1$
+
+$$\begin{eqnarray}
+\gamma \left( 1\right) &=&\mathbb{E}\Big[ \big(y_{t}-\mathbb{E}\left[ y_{t}\right] \big)\big(y_{t-1}-\mathbb{E}\left[ y_{t-1}\right] \big) \Big] \\
+&=&\mathbb{E}\left[ (\varepsilon_{t}+\phi \varepsilon_{t-1}+\phi^{2}\varepsilon_{t-2}+ \ldots )\times (\varepsilon_{t-1}+\phi \varepsilon_{t-2}+ \ldots )\right]  \\
+&=&\left( \phi +\phi^{3}+\phi^{5}+ \ldots \right) \sigma^{2}=\phi \left( 1+\phi^{2}+\phi^{4}+ \ldots \right) \sigma^{2}  \\
+&=&\phi \frac{1}{1-\phi^{2}}\sigma^{2}  \\
+&=&\phi \mathsf{var}\left[ y_{t}\right]  
+\end{eqnarray}$$
+if $j>1$
+$$\begin{equation}
+\gamma \left( j\right) =\mathbb{E}\Big[ \big(y_{t}-\mathbb{E}\left[ y_{t}\right] \big)\big( y_{t-j}-E \left[ y-j\right] \big) \Big] =\phi^{j} \mathsf{var} \left[ y_{t}\right] 
+\end{equation}$$
+
+### ACF
+
+$$\begin{equation}
+\rho \left( 0\right) =\frac{\gamma \left( 0\right) }{\gamma \left( 0\right) } =1,\ \rho \left( 1\right) =\frac{\gamma \left( 1\right) }{\gamma \left( 0\right) }=\phi , \ldots , \rho \left( j\right) =\frac{\gamma \left( j\right) }{\gamma \left( 0\right) }=\phi^{j}  
+\end{equation}$$
+
+
+### MA expression
+
+$$\begin{eqnarray}
+y_{t} &=&\phi y_{t-1}+\varepsilon_{t} \\
+&=& \phi (\phi y_{t-2}+\varepsilon_{t-1})+\varepsilon_{t}  \\
+&=& \phi ^{2}(\phi y_{t-3}+\varepsilon_{t-2})+\phi \varepsilon_{t-1}+\varepsilon_{t} \\
+&=& \vdots  \\
+&=& \phi^{j+1}y_{t-(j+1)}+\phi^{j}\varepsilon_{t-j} + \ldots + \phi^{2}\varepsilon_{t-2} + \phi \varepsilon_{t-1} + \varepsilon_{t} 
+\end{eqnarray}$$
+
+Thus, AR(1) model can express as MA($\infty$) model. From here we know that $|phi|<1$ otherwise this TS will diverge.
+
+### Lag operators
+
+\df: Lag operator: $L*y_t = y_{t -1}$
+
+Thus, for AR(1) model we have:
+
+$$\left( 1-\phi L\right) y_{t}=\varepsilon_{t}$$
+
+if $|phi|<1$ 
+
+we have
+
+$$\begin{eqnarray}
+\left( 1-\phi L\right)^{-1} \left( 1-\phi L\right) y_{t}&=&\left( 1-\phi L\right)^{-1}\varepsilon_{t}  \\
+y_{t}&=&\left( 1-\phi L\right)^{-1}\varepsilon_{t}
+\end{eqnarray}$$
+
+By geometric rule:
+
+$$\begin{equation}
+\left( 1-\phi L\right)^{-1}=\underset{j\rightarrow \infty }{\lim }\left( 1+\phi L+\left( \phi L\right)^{2}+ \ldots +\left( \phi L\right)^{j}\right) 
+\end{equation}$$
+
+$$y_t = \left(\sum_{i = 0}^\infty(\phi L)^i\right) \varepsilon_t$$
+### Impulse Response Function (IRF)
+
+ACF equals the dynamic multipliers that may be summarised by the impulse response function
+
+$$\begin{equation}
+\frac{\partial y_{t}}{\partial \varepsilon_{t}}=1,\frac{\partial y_{t}}{\partial \varepsilon_{t-1}}=\phi , \ldots , \frac{\partial y_{t}}{\partial \varepsilon_{t-j}}=\phi^{j}  
+\end{equation}$$
+
+### Simulated AR
+
+```{r simulate_AR}
+plot.ts(dat$ar1)
+
+acf(dat$ar1, lag.max = 20)
+pacf(dat$ar1, lag.max = 20)
+Box.test(dat$ar1, lag = 2, type = "Ljung-Box")
+Box.test(dat$ar1, lag = 1, type = "Ljung-Box") # in fact both path the test
+
+# So we need to compare different lags
+
+Q_stat <- rep(0, 10)
+Q_prob <- rep(0, 10)
+
+for (i in 1:10) {
+  Q_stat[i] <- Box.test(dat$ar1, lag=i, type="Ljung-Box")$statistic
+  Q_prob[i] <- Box.test(dat$ar1, lag=i, type="Ljung-Box")$p.value
+}
+
+op <- par(mfrow = c(1, 2)) # create plot area of (1 X 2)
+ plot(Q_stat, ylab = "", main = 'Q-Statistic') # here we can see after 1 there is a dramatical increasing in Q-statistic
+ plot(Q_prob, ylab = "", ylim = c(0,1), main = 'Probability values')
+par(op) # close plot area
+
+## estimate
+
+# we can use arima model to estiate it
+arma100 <- arima(dat$ar1, order = c(1, 0, 0), include.mean = FALSE)
+
+arma100 # arima.sim(model = list(ar = 0.8), n = 200)
+
+# after estimate we need to check the residuals
+plot(arma100$residuals)
+
+acf(arma100$residuals, lag.max = 20) # check the residuals are white noise
+pacf(arma100$residuals, lag.max = 20)
+```
+
+## AR(p)
+
+$$y_t = \sum_{i = 1}^p \phi_iy_{t - i} + \varepsilon_t$$
+
+Rewrite AR(p) we have:
+
+$$Z_{t}= \left[
+\begin{array}{c}
+{y_{t}}\\
+\vdots\\
+{y_{t-p + 1}}
+\end{array}\right]$$
+
+$$\upsilon _{t}= \left[
+\begin{array}{c}
+{\varepsilon_{t}}\\
+{0}\\
+\vdots\\
+{0}
+\end{array}\right]$$
+
+$$\Gamma =\left[ 
+\begin{array}{cccccc}
+\phi _{1} & \phi _{2} & \phi _{2} & \dots & \phi _{p-1} & \phi _{p} \\ 
+1 & 0 & 0 & \dots & 0 & 0 \\ 
+0 & 1 & 0 & \dots & 0 & 0 \\ 
+\vdots & \vdots & \vdots & \ddots & \vdots & \vdots \\ 
+0 & 0 & 0 & \dots & 1 & 0
+\end{array}\right]$$
+
+$$\begin{equation}
+Z_{t}=\Gamma Z_{t-1}+ \upsilon_{t}
+\end{equation}$$
+
+The matrix $\Gamma$ is termed the **companion form** matrix.
+
+The eigenvalue of $\Gamma$ will satisfy characteristic equation, for AR(2): $x^{2}-\phi_{1}x-\phi_{2}=0$
+
+### Stationary condition:
+
+If the absolute value of eigenvalue is less than 1, then p th AR is stable.
+
+### Order selection
+
+- PACF
+For AR model the PACF will decay as order increasing only p is significantly different than 0. Thus, we can use pacf to determine
+
+-MLE
+Using MLE method to determine which order is suitable.
+
+
+
+
+# Moving Average Models
+
+## MA(1)
+
+$$y_{t}=\mu +\varepsilon_{t}+\theta \varepsilon_{t-1}$$
+
+### Moment
+
+1. mean:
+
+$$\begin{eqnarray}
+\mathbb{E}\left[ y_{t}\right] &=&\mathbb{E}[\mu +\varepsilon_{t}+\theta \varepsilon_{t-1}] \\
+ &=&\mu +\mathbb{E}[\varepsilon_{t}]+\theta \mathbb{E}\left[ \varepsilon_{t-1}\right] \\
+ &=&\mu
+\end{eqnarray}$$
+
+2. Variance:
+
+$$\begin{eqnarray}
+\mathsf{var}[y_{t}] &=&\mathbb{E}\big[ y_{t}-\mathbb{E}[y_{t}] \big]^2  \\
+&=&\mathbb{E}\big[ \left( \mu +\varepsilon_{t}+\theta \varepsilon_{t-1}\right) -\mu \big]^2  \\
+&=&\mathbb{E}[\varepsilon_{t}]^{2}+2\theta \mathbb{E}[\varepsilon_{t}\varepsilon_{t-1}]+\mathbb{E}[\theta \varepsilon_{t-1}]^{2}  \\
+&=& \sigma^{2} + 0 + \theta \sigma^2    \\
+&=&\left( 1+\theta^{2}\right) \sigma^{2}  
+\end{eqnarray}$$
+
+3. Covariance:
+
+3.1 if j = 1
+
+$$\begin{eqnarray}
+\mathsf{cov}[y_{t},y_{t-1}] &=&\mathbb{E}\Big[ \big( y_{t}-\mathbb{E}\left[ y_{t}\right] \big) \big( y_{t-1}-\mathbb{E}\left[ y_{t-1}\right] \big) \Big] \\
+ &=&\mathbb{E}\big[ \left( \varepsilon_{t}+\theta \varepsilon_{t-1}\right) \left( \varepsilon_{t-1}+\theta \varepsilon_{t-2}\right) \big]  \\
+ &=&\mathbb{E}\left[ \varepsilon_{t}\varepsilon_{t-1}]+\theta \mathbb{E}[\varepsilon^{2}_{t-1}]+\mathbb{E}[\theta \varepsilon_{t}\varepsilon_{t-2}\right] +\mathbb{E}[\theta^{2} \varepsilon_{t-1}\varepsilon_{t-2}]  \\
+ &=&0+\theta \sigma^{2}+0+0  \\
+ &=&\theta \sigma^{2}
+\end{eqnarray}$$
+
+3.2 if j > 1:
+
+$$\begin{eqnarray}
+\mathsf{cov}[y_{t},y_{t-j}] &=&\mathbb{E}\Big[ \big( y_{t}-\mathbb{E}\left[ y_{t}\right] \big) \big( y_{t-j}-\mathbb{E}\left[ y_{t-j}\right] \big) \Big]  \\
+ &=&\mathbb{E}\big[ \left( \varepsilon_{t}+\theta \varepsilon_{t-1}\right) \left(\varepsilon_{t-j}+\theta \varepsilon_{t-j}\right) \big]  \\
+ &=&0 \;\;\;\; \text{for} \;\;  j > 1
+\end{eqnarray}$$
+
+\remark:  Neither the mean, variance nor covariances depend on time;
+
+### ACF:
+
+$$\begin{eqnarray}
+\rho \left(j\right) \equiv \frac{\gamma \left( j\right) }{\gamma \left( 0\right) } = \frac{\mathsf{cov} [ y_{t},y_{t-j} ] }{\mathsf{var} [ y_{t} ] }
+\end{eqnarray}$$
+
+$$\begin{eqnarray}
+\rho \left( 1\right) &=&\frac{\theta }{\left( 1+\theta^{2}\right) } \\
+\rho \left( j\right) \ &=&0 \;\;\;\; \text{for } \;\; j > 1 
+\end{eqnarray}$$
+
+\remark: for lag orders $j>1$, the ACF are zero.
+
+### Simulated MA
+
+```{r}
+plot.ts(dat$ma1)
+acf(dat$ma1) # after 1 the ACF decay to 0
+
+arma001 <- arima(dat$ma1, order = c(0, 0, 1))
+arma001 # arima.sim(model = list(ma = 0.7), n = 200),
+
+# after estimate we need to check the residuals
+plot(arma001$residuals)
+
+acf(arma001$residuals, lag.max = 20) # check the residuals are white noise
+pacf(arma001$residuals, lag.max = 20)
+```
+
+
+## MA(q) & MA($\infty$)
+
+MA(q):
+$$\begin{equation}
+y_{t}=\mu +\varepsilon_{t}+\theta_{1}\varepsilon_{t-1}+\theta_{2} \varepsilon_{t-2}+ \ldots +\theta_{q}\varepsilon_{t-q} 
+\end{equation}$$
+
+MA($\infty$):
+
+$$\begin{equation}
+y_{t}=\mu +\overset{\infty }{\underset{j=0}{\sum }}\theta_{j}\varepsilon_{t-j}=\mu +\theta_{0}\varepsilon_{t}+\theta_{1}\varepsilon_{t-1}+\theta_{2}\varepsilon_{t-2}+ \ldots
+\end{equation}$$
+
+### Stationary condition:
+
+Weakly stationary condition:
+$$\begin{equation}
+\overset{\infty }{\underset{j=0}{\sum }}|\theta_{j}|<\infty 
+\end{equation}$$
+
+covariance stationary condition:
+
+$$\begin{equation}
+\overset{\infty }{\underset{j=0}{\sum }}|\gamma_{j}|<\infty 
+\end{equation}$$
+
+$$\gamma_j := cov(y_t, y_{t - j})$$
+
+Thus, we know that we can identify the order of MA(q) process by ACF as only within order $ACF\neq 0$ otherwise equals to 0.
+
+# ARMA Models
+
+ARMA(1, 1)
+
+$$y_{t}=\phi y_{t-1}+\varepsilon_{t}+\theta \varepsilon_{t-1}$$
+
+Using Lag operator:
+
+$$ \phi \left( L\right) y_{t}= \theta \left( L\right) \varepsilon_{t}$$
+
+Multiplying by $\left( 1-\phi L\right)^{-1}$ on both sides,
+
+$$\begin{eqnarray}
+y_{t} &=&\frac{\left( 1+\theta L\right) }{\left( 1-\phi L\right) } \varepsilon_{t} \\
+ &=&\left( 1-\phi L\right)^{-1}\varepsilon_{t} + \left( 1-\phi L \right)^{-1} \theta_{1} \varepsilon_{t-1}
+\end{eqnarray}$$
+
+If this TS is stationary, we have
+
+$$\begin{eqnarray}
+y_{t} &=&\overset{\infty }{\underset{j=0}{\sum }}\left(\phi L\right)^{j}\varepsilon_{t}+\theta 
+\overset{\infty }{\underset{j=0}{\sum }}\left(\phi L\right)^{j}\varepsilon_{t-1}\\
+ &=&\varepsilon_{t}+\overset{\infty }{\underset{j = 1}{\sum }}\phi^{j}\varepsilon_{t-j}+\theta \overset{\infty }{\underset{j=1}{\sum }}\phi^{j-1}\varepsilon_{t-j}\\
+&=&\varepsilon_{t}+\overset{\infty }{\underset{j=1}{\sum }}\left( \phi^{j}+\theta \phi^{j-1}\right) \varepsilon_{t-1}      
+\end{eqnarray}$$
+
+**order selection**
+
+Order selection mainly based on extended acf
+
+## Seasonal ARMA
+
+Problem: the seasonal effect will arise to AR, MA term.
+
+For example for ARMA model using monthly data the model will be:
+
+$$y_t = \phi y_{t-12} + \varepsilon_t + \theta \varepsilon_{t-12}$$
+
+dealing method: Using VAR(p) with 12 value in a vector.
+
+## Structural Breaks
+
+If there is a change point we can estimate seperately, but the change point must be known a priori.
+
+dealing method: Chow test
+
+```{r}
+rgdp_dat <- fred("GDPC1", "1947-01-01", "2021-04-01")[, -1] %>% 
+    mutate(growth = 100*(price/lag(price) - 1),
+           growth_lag = lag(growth)) %>% 
+    drop_na()
+
+sa_bp <- breakpoints(growth ~ growth_lag, data = rgdp_dat, breaks = 5)
+summary(sa_bp)  # where the breakpoints are
+
+plot(sa_bp, breaks = 5)
+
+rgdp_dat %>% 
+    slice(sa_bp$breakpoints) # there is a break in 2009
+# we label the subsample after 2009 as y
+y <- rgdp_dat %>% 
+    filter(date > ymd("2009-10-01")) %>% 
+    pull(growth)
+acf(y, lag = 20)
+pacf(y, lag = 20)
+```
+

@@ -1,0 +1,53 @@
+---
+title: "Panel Usage"
+author: Wayne Zhang
+output: pdf_document
+header-includes:
+  \usepackage{fvextra}
+  \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\}}
+---
+
+\newcommand{\indep}{\perp\!\!\!\perp}
+\newcommand{\covprob}{\overset{p}{\rightarrow}}
+\newcommand{\covdist}{\overset{d}{\rightarrow}}
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message=FALSE, warning=FALSE, fig.width=6, fig.height=3.6, fig.align="center")
+library(FinMetric)
+# define figure template
+plot_task <- function(...){
+    ggplot(...) +
+        theme_bw() +
+        ggthemes::scale_colour_stata("s2color") +
+        ggthemes::scale_fill_stata("s2color") +
+        theme(legend.position = "bottom") +
+        scale_linetype_manual(values = c("solid", "longdash", "dotted"))
+}
+# define table template
+table_task <- function(...){
+    knitr::kable(..., booktab = T,
+          format = "latex",
+          linesep = "") %>% 
+        kableExtra::kable_styling(position = 'center',
+                  latex_options = "HOLD_position")
+}
+```
+
+## Balanced panel data
+
+Balanced panel means for n individuals each with T observations.
+
+For example, this is a unbalanced panel data:
+
+```{r}
+# Unbalanced panels
+data("EmplUK", package = "plm")
+EmplUK %>%
+  select(year, firm) %>%
+  filter(firm %in% c(1:10)) %>%
+  table()
+
+balance_panel(EmplUK, type = "fill_NA", individual_var = c("sector"))
+```
+
+

@@ -1,0 +1,179 @@
+---
+title: "TSRethinking3 Univariate state-space models"
+author: "Wayne Zhang"
+date: "10/9/2021"
+output:
+  html_document: 
+    toc: yes
+    toc_depth: 4
+    number_sections: true
+---
+\newcommand{\df}[1]{\textbf{Define #1}}
+\newcommand{\remark}{\textbf{Remark}}
+
+```{r package, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(fig.width = 8, fig.height = 4)
+rm(list=ls())  # remove variables
+library(dlm)
+library(tidyverse)
+library(lubridate)
+library(FinCal)
+set.seed(123)
+```
+
+
+# State Space Modelling
+
+The state-space model provides a flexible approach to time series analysis, especially
+for simplifying maximum-likelihood estimation and handling missing values.
+
+## Basic model
+
+$$\begin{eqnarray}
+y_{t}= \mu_{t} + \gamma_{t} + \varepsilon_{t}, & \;\;\;\; & t=1,\ldots,T
+\end{eqnarray}$$
+
+where:
+- $\mu_t$ is a slowly varying component called the trend
+- $\gamma_t$ is a periodic component called the seasonal
+- $\varepsilon_t$ is an irregular component called the error
+
+To model $\mu_t$ and $\gamma_t$ suppose a scalar series $\alpha_t$ follows a random walk
+
+$$\begin{eqnarray}
+\alpha_{t+1}= \alpha_{t} + \eta_{t}, & \;\;\;\; & \eta_{t} \sim \mbox{i.i.d.} \mathcal{N}(0, W_{\eta})
+\end{eqnarray}$$
+
+If we assume that no seasonal is present ($\gamma_t = 0$), and $\mu_t = \alpha_t$ (where $\alpha_t$ is a random walk), we can rewrite the previous expressions as
+
+$$\begin{eqnarray}
+y_{t}= \alpha_{t} + \varepsilon_{t}, & \;\;\;\; & \varepsilon_{t} \sim \mbox{i.i.d.} \mathcal{N}(0, V_{\varepsilon}) \\
+\alpha_{t+1}= \alpha_{t} + \eta_{t}, & \;\;\;\; & \eta \sim \mbox{i.i.d.} \mathcal{N}(0, W_{\eta})
+\end{eqnarray}$$
+
+\df{state space characteristics}:
+
+a **measurement equation** that describes the relation between the observed variables $\{y_t\}_{t = 1}^n$ and the unobserved state variables $\alpha_t$.
+
+a **state equation** that reflects the dynamics of the unobserved state variables, $\{\alpha_t\}_{t = 1}^n$.
+
+## The mathematics of State Space Modelling
+
+An important feature of these models is that they pay particular attention to the set of m state variables that evolve over time. These state variables may be subject to systematic distortions and an element of noise.
+
+### Measurement equation
+
+The respective state variables could then be contained in an $m\times 1$ vector, which is denoted $\alpha_t$
+
+The $N$ variables that are observed are defined by an $N \times 1$  vector, $y_t$
+
+Then we can define the measurement equation as
+
+$$\begin{aligned}
+y_{t}& = F_{t}&*&\alpha_{t} &+ &S_{t}&\varepsilon_{t} \\
+N\times1& = (N\times m)&*&(m\times 1) &+ &(N\times r)&(r\times 1)
+\end{aligned}$$
+
+- Where $F_t$ is a fixed matrix of order $N\times m$
+
+- $\varepsilon_t$ is a $r\times 1$ vector with zero mean & covariance matrix
+
+- r is the dimension of the measurement equation disturbance vector
+
+- $S_t$ is also a fixed matrix of order $N\times r$
+
+
+### State equation
+
+The state equation could then be described as
+
+$$\begin{equation}
+\alpha_{t+1} = G_{t}\alpha_{t} + R_{t}\eta_{t}
+\end{equation}$$
+
+- where $\(G_t\)$ and $\(R_t\)$ are fixed matrices of order $\(m \times m\)$ and $\(m \times g\)$
+- $\(g\)$ refers to the dimension of the state equation disturbance vector
+- $\(\eta_t\)$ is a $\(g \times 1\)$ vector with zero mean and covariance matrix, $\(W\)$
+
+### Disturbances
+
+- Disturbances in the measurement and state equations are assumed to be uncorrelated
+
+$$\begin{eqnarray}
+\left\{ \begin{array}{ll}
+\varepsilon_t\\
+\eta_t\\
+\end{array} \right\} \sim \mbox{i.i.d.} \; \mathcal{N}
+\left[ 0, \left( \begin{array}{ll}
+V & 0\\
+0 & W\\
+\end{array} \right)\right]
+\end{eqnarray}$$
+
+- And they are also uncorrelated with the initial state vector $\(\alpha_0\)$
+$$\begin{eqnarray}
+\mathbb{E}\left[\alpha_{0} \eta_{t}^{\prime}\right]=0, &\mathbb{E}\left[\alpha_{0} \varepsilon_{t}^{\prime}\right]=0
+\end{eqnarray}$$
+
+### Unknowns
+
+- The covariance matrix of the error terms may be referred to as $\(\Omega\)$
+- The coefficient matrix may be referred to as $\(\Phi\)$
+
+$$\begin{eqnarray}
+\Phi =
+\left\{ \begin{array}{ll}
+F_t\\
+G_t\\
+\end{array} \right\} , \; \; \; \;
+\Omega =
+\left\{ \begin{array}{ll}
+V &amp; 0\\
+0 &amp; W\\
+\end{array} \right\}
+\end{eqnarray}$$
+
+- which represent the unknowns in any standard regression model
+
+### Estimate
+
+There are several software packages that facilitate the estimation of State Space models. R packages include StructTS, sspir, dse, dlm, dlmodeler, rucm, MARSS, KFAS, RWinBugs, RStan, etc. Since the unobserved variables take the form of random variables it is usually more convenient to make use of **Bayesian estimation techniques**
+
+## Local Level Model
+
+$$\begin{eqnarray}
+\alpha_t = \mu_t, \; \eta_t = \xi_t, \; F_t = G_t = S_t = R_t = 1,  \; W = W_\xi, \; V = V_{\varepsilon},
+\end{eqnarray}$$
+
+Hence the measurement and state equations are
+
+$$\begin{eqnarray}
+y_{t} = \mu_{t} + \varepsilon_{t}, & \;\;\;\; & \varepsilon_{t} \sim \mathsf{i.i.d.} \mathcal{N}(0,V_{\varepsilon}) \\
+\mu_{t+1} = \mu_{t} + \xi_{t}, & \;\;\;\; & \xi_{t} \sim \mathsf{i.i.d.} \mathcal{N}(0,W_\xi)
+\end{eqnarray}$$
+
+
+
+Wrangling data:
+
+```{r}
+rgdp <- fred("GDPC1", "1970-01-01", "2021-04-01")[, -1]
+ngdp <- fred("NGDPPOT", "1970-01-01", "2021-04-01")[, -1]
+
+dat <- cbind(rgdp$date, rgdp$price, ngdp$price)
+colnames(dat) <- c("date", "rgdp", "ngdp")
+dat <- as.data.frame(dat)
+dat_gdp <- dat %>% 
+    mutate(defl = c(0, diff(log(ngdp/rgdp)*100, lag = 1))) %>%  
+    drop_na()# calculate gdp deflator
+
+y <- dat_gdp$defl
+plot.ts(y)
+```
+
+
+
+```{r}
+
+```
+

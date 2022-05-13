@@ -1,0 +1,125 @@
+---
+title: "TSRethinking4 Decomposing Time Series"
+author: "Wayne Zhang"
+date: "10/9/2021"
+output:
+  html_document: 
+    toc: yes
+    toc_depth: 4
+    number_sections: true
+---
+\newcommand{\df}[1]{\textbf{Define #1}}
+\newcommand{\remark}{\textbf{Remark}}
+
+```{r package, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(fig.width = 8, fig.height = 4)
+rm(list=ls())  # remove variables
+library(mFilter)
+library(tidyverse)
+library(lubridate)
+library(FinCal)
+set.seed(123)
+```
+
+Another important phenomena of time series is that they may be decomposed into periodic variations of the underlying phenomenon. Shumway & Stoffer (2011) suggest these frequency decompositions should be expressed as Fourier frequencies that are driven by sines and cosines
+
+Example: Business cycle
+
+# Decomposing Time Series
+
+## Spectral Analysis
+
+\df{Spectral Analysis}: A time series could be considered as a weighted sum of underlying series that have different cyclical patterns
+
+## Statistical detrending methods
+
+```{r}
+rgdp <- fred("GDPC1", "1950-01-01", "2021-04-01")[, -1]
+
+gdp <- log(rgdp$price)
+plot(rgdp$date, gdp, type = "l")
+```
+
+### Detrend data with a linear filter
+
+To estimate a linear trend we can make use of a linear regression model that includes a time trend and a constant. To estimate such a model we make use of the lm command as follows.
+
+```{r}
+lin.mod <- lm(gdp ~ time(gdp)) # regress y_t ~ t
+lin.trend <- lin.mod$fitted.values %>% 
+    as.numeric() # gave a baseline
+
+lin.cycle <- gdp - lin.trend # cycle is the difference between the data and linear trend
+ggplot() +
+    geom_line(aes(x = rgdp$date, y = gdp)) +
+    geom_line(data = data.frame(t = rgdp$date, y = lin.trend), aes(x = t, y = y), color = "red") +
+    ggtitle("gdp trend")
+
+ggplot() +geom_line(aes(x = rgdp$date, y = lin.cycle)) + 
+    geom_hline(yintercept = 0, color = "red") +
+    ggtitle("linear business cycle")
+```
+### Detrend data with the Hodrick-Prescott filter
+
+In this case we are setting the value for lambda equal to 1600, which is what has been suggested for quarterly data.
+
+```{r}
+hp.decom <- hpfilter(gdp, freq=1600, type="lambda")  # use HP filter with lambda=1600 for quarterly data (rule of thumb)
+
+ggplot() +
+    geom_line(aes(x = rgdp$date, y = gdp)) +
+    geom_line(aes(x = rgdp$date, y = hp.decom$trend), color = "red") +
+    ggtitle("gdp trend")
+
+ggplot() + geom_line(aes(x = rgdp$date, y = gdp - hp.decom$trend)) + 
+    geom_hline(yintercept = 0, color = "red") +
+    ggtitle("HP business cycle")
+```
+
+
+
+### Detrend data with the Baxter-King filter
+
+In this case we need to specify the frequency band for the cycle, where the upper limit is set at 32 and lower limit is set at 6.
+
+```{r}
+bp.decom <- bkfilter(gdp, pl=6, pu=32) # from mFilter
+
+ggplot() +
+    geom_line(aes(x = rgdp$date, y = gdp)) +
+    geom_line(aes(x = rgdp$date, y = bp.decom$trend), color = "red") +
+    ggtitle("gdp trend")
+
+ggplot() + geom_line(aes(x = rgdp$date, y = gdp - bp.decom$trend)) + 
+    geom_hline(yintercept = 0, color = "red") +
+    ggtitle("BK business cycle")
+```
+
+### Detrend data with the Christiano-Fitzgerald filter
+
+This filter is very similar in nature to what was provided above. In addition, it also generates a highly similar result to that of the Baxter-King filter.
+
+```{r}
+cf.decom <- cffilter(gdp, pl=6, pu=32, root = TRUE) # from mFilter
+
+ggplot() +
+    geom_line(aes(x = rgdp$date, y = gdp)) +
+    geom_line(aes(x = rgdp$date, y = cf.decom$trend), color = "red") +
+    ggtitle("gdp trend")
+
+ggplot() + geom_line(aes(x = rgdp$date, y = gdp - cf.decom$trend)) + 
+    geom_hline(yintercept = 0, color = "red") +
+    ggtitle("CF business cycle")
+```
+
+### Detrend data with the Beveridge-Nelson decomposition
+
+When employing this technique we would need to specify the number of lags that would pertain to the stationary component. In the example that I’ve included below, I’ve assume eight lags.
+
+```{r}
+# bn.decomp <- tsm::bnd(gdp, nlag=8)  # apply the BN decomposition that creates dataframe
+# 
+# bn.trend <- bn.decomp[,1]  # first column contains trend
+# bn.cycle <- bn.decomp[,2]  # second column contains cycle
+```
+

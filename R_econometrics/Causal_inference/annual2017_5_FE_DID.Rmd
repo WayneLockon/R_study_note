@@ -1,0 +1,455 @@
+---
+title: "Causal Inference4"
+author: "Weiheng Zhang"
+date: '2022-04-17'
+output: 
+  pdf_document: 
+    toc: yes
+---
+
+```{r, message=FALSE, warning=FALSE}
+library(FinMetric)
+library(formatR)
+knitr::opts_chunk$set(tidy.opts=list(width.cutoff=60),
+                      tidy=TRUE,
+                      echo = TRUE)
+```
+
+
+# Fixed Effects, DID and Panel data
+
+## Fixed effect
+
+### Individual Fixed Effect
+
+\begin{itemize}
+    \item Setting
+    
+    Question: because workers in union, then they wage high; or they earn more because of they are more experienced
+    
+$$\begin{aligned}
+    Y_{it}&: \text{log earnings of worker i at time t};\quad Y_{it} = Y_{0it} + (Y_{1it} - Y_{0it})D_{it} \\
+    D_{it}&: \text{union status};\\
+    A_{i}&: \text{unobserved worker ability};\\
+    X_{it}&: \text{other observed covariate}
+    \end{aligned}$$
+    
+Suppose:
+
+$$E(Y_{0it}|A_i, X_{it}, t, D_{it}) = E(Y_{0it}|A_i, X_{it}, t)$$
+
+\item key fixed-effects estimation assumption: $A_i$ appears without a time subscrit in a linear model:
+
+$$E(Y_{0it}|A_i, X_{it}, t)  = \alpha + \lambda_t + A_{i}'\gamma + X_{it}'\beta$$
+
+\item We assume the causal effect of union membership is additive and constant:
+
+$$E(Y_{1it}|A_i, X_{it}, t) = E(Y_{0it}|A_i, X_{it}, t) + \rho$$
+
+\item Thus, we have:
+
+$$E(Y_{1it}|A_i, X_{it}, t) = \alpha + \lambda_t + \rho D_{it} + A_{i}'\gamma + X_{it}'\beta$$
+
+$$\Rightarrow Y_{1it} = \alpha_i + \lambda_t + \rho D_{it} + X_{it}'\beta + \varepsilon_{it}$$
+
+where $\alpha_i = \alpha + A_{i}'\gamma$.
+
+Individual effect: $\alpha_i$
+
+Year effect: $\lambda_t$
+
+By within transformation, we can eliminate the individual effect, we can estimate $\rho$ consistently.
+    
+    
+\end{itemize}
+
+### Application
+
+```{r}
+# Balanced panels
+data("Grunfeld", package = "plm")
+Grunfeld %>%
+  select(year, firm) %>%
+  table()
+
+# Unbalanced panels
+
+data("EmplUK", package = "plm")
+EmplUK %>%
+  select(year, firm) %>%
+  filter(firm %in% c(1:10)) %>%
+  table()
+```
+
+#### Balance unbalanced data
+
+```{r}
+# Balance unbalanced data
+
+# Using "fill" creates a new row with NAs for each missing time point.
+EmplUK.balanced1 <- make.pbalanced(EmplUK, balance.type = "fill")
+EmplUK.balanced1[1:8,]
+
+# Using "shared.times" keeps all available firms in the dataset but drops 
+# all time periods where at least one firm has no data.
+EmplUK.balanced2 <- make.pbalanced(EmplUK, balance.type = "shared.times")
+EmplUK.balanced2[1:10,]
+
+# By using "shared.individuals" all available time periods are kept 
+# but only for those firms which have information for each of them.
+EmplUK.balanced3 <- make.pbalanced(EmplUK, balance.type = "shared.individuals")
+
+EmplUK.balanced3 %>%
+  group_by(firm) %>%
+  slice(1)
+```
+
+#### Estimation Methods
+
+##### Pooled Cross Sections
+
+```{r}
+# Pooled OLS via lm
+pooled_ols_lm <- lm(inv ~ capital, data = Grunfeld)
+
+summary(pooled_ols_lm)
+
+# Pooled OLS via plm
+pooled_ols_plm <- plm(inv ~ capital , data = Grunfeld,
+                      index = c("firm", "year"),
+                      effect = "individual", model = "pooling")
+coeftest(pooled_ols_plm, vcov = vcovHC, type = "HC1")
+
+ggplot(data = Grunfeld,
+       aes(x = capital, y = inv)) +
+  geom_point(aes(color = factor(firm, 
+                                levels = c(1:10)))) +
+  geom_smooth(method = "lm", se = F) +
+  labs(x = "Stock of Plant and Equipment",
+       y = "Gross Investment",
+       shape = "Firm") +
+    labs(color = "Firm")
+```
+
+##### Fixed Effects Model
+
+```{r, results='asis'}
+# FE using lm()
+fe_model_lm <- lm(inv ~ capital + factor(firm), data = Grunfeld)
+
+# FE using plm()
+fe_model_plm <- plm(inv ~ capital + factor(firm), 
+                    data = Grunfeld,
+                    index = c("firm", "year"),
+                    effect = "individual",
+                    model = "within")
+
+# FE using felm
+fe_model_felm <- lfe::felm(inv ~ capital|factor(firm), 
+                    data = Grunfeld)
+
+rob_se <- function(x){
+    sqrt(diag(vcovHC(x, type = "HC1", group = "firm")))
+}
+
+se <- list(rob_se(fe_model_lm),
+           rob_se(fe_model_plm),
+           rob_se(fe_model_felm))
+
+stargazer(fe_model_lm, fe_model_plm, fe_model_felm,
+          se = se,
+          header = F,
+          keep.stat = c("n", "rsq"),
+          omit = "factor")
+
+## Including time dimension
+# lm()
+fe_time_lm <- lm(inv ~ capital + factor(firm) + factor(year), 
+                 data = Grunfeld)
+
+# plm()
+fe_time_plm <- plm(inv ~ capital, data = Grunfeld, 
+                   index = c("firm", "year"), effect = "twoways",
+                   model = "within")
+# felm
+fe_time_felm <- lfe::felm(inv ~ capital | factor(firm) + factor(year), 
+                          data = Grunfeld)
+
+se <- list(rob_se(fe_time_lm),
+           rob_se(fe_time_plm),
+           rob_se(fe_time_felm))
+
+stargazer(fe_time_lm, fe_time_plm, fe_time_felm,
+          se = se,
+          header = F,
+          keep.stat = c("n", "rsq"),
+          omit = "factor")
+```
+
+
+##### First-difference Estimator
+
+```{r}
+# More than two time periods
+fe_model_fd <- plm(inv ~ capital, data = Grunfeld,
+                   index = c("firm", "year"),
+                   effect = "individual", model = "fd")
+
+summary(fe_model_fd)
+
+# only two period
+# Fixed effect model is same as first difference estimation
+# Within estimation (two periods)
+fe_model_plm_check <- plm(inv ~ capital, 
+                          data = Grunfeld, 
+                          subset = year %in% c(1935, 1936), 
+                          index = c("firm", "year"), 
+                          effect = "individual", model = "within")
+
+coeftest(fe_model_plm_check)
+
+# FD estimation (two periods)
+fe_model_fd_check<- plm(inv ~ capital -1,
+                        data = Grunfeld, 
+                        subset = year %in% c(1935, 1936), 
+                        index = c("firm", "year"), 
+                        effect = "individual", model = "fd")
+
+
+coeftest(fe_model_fd_check)
+```
+
+##### Random Effect Model
+
+```{r}
+re_model_plm <- plm(inv ~ capital, data = Grunfeld, 
+                    index = c("firm", "year"), 
+                    effect = "individual", model = "random")
+
+summary(re_model_plm)
+```
+
+##### Tests for panel data
+
+```{r}
+# FE or Pooled OLS
+pFtest(fe_model_plm, pooled_ols_plm)
+# The null hypothesis is rejected in favor of the alternative that there are 
+# significant fixed effects.
+
+# RE or FE Hausman Test
+phtest(fe_model_plm, re_model_plm)
+# The null hypothesis cannot be rejected here, hence we should use a RE model.
+
+# Pooled OLS or RE
+plmtest(pooled_ols_plm, effect = "individual", type = c("bp"))
+# The test shows that there are significant differences across firms. Running a
+# pooled OLS regression is thus not appropriate and the RE model is the better 
+# choice.
+
+# one-way model or two-way model
+pFtest(fe_time_plm, fe_model_plm) 
+
+# Heteroskedasticity
+lmtest::bptest(inv ~ capital + factor(firm), 
+               studentize = F, data = Grunfeld)
+# There is strong evidence for the presense of heteroskedasticity. Hence, the 
+# use of robust standard errors is advised.
+
+# Serial Correlation
+pbgtest(fe_model_plm)
+# There is strong evidence that the residuals are serially correlated.
+```
+
+
+##### Clustered SE
+
+```{r}
+# Clustered SE(OLS)
+coeftest(pooled_ols_plm,
+         vcov = vcovHC(pooled_ols_plm,
+                       type = "sss", 
+                       # includes the small sample correction method as applied by Stata
+                       cluster = "group"))
+
+# Clustered SE(FE)
+coeftest(fe_model_plm, 
+         vcov = vcovHC(fe_model_plm,
+                       type = "sss",
+                       cluster = "group"))
+
+# Clustered SE(RE)
+coeftest(re_model_plm, 
+         vcov = vcovHC(re_model_plm,
+                       type = "sss",
+                       cluster = "group"))
+```
+
+
+
+## Differences-in-Differences: pre and post treatment and control
+
+* Goal: Estimate effects of events or policy interventions that take place at an aggregate level.
+
+* Advantages:
+    * Policy interventions often take place at an aggregate level;
+    * Aggregate /macro data are often available;
+* Problems:
+    * Selection of Control group is often ambiguous;
+    * Standard errors do not reflect uncertainty about hte ability of the control group to reproduce the counterfactual of interest.
+    
+\begin{itemize}
+    \item The Synthetic Control Method
+    \begin{itemize}
+        \item 
+    \end{itemize}
+\end{itemize}
+
+
+
+
+### Application: Card Krueger (1994) 
+
+```{r}
+# raw data
+data_raw <- read_stata("/Users/waynezhang/Library/CloudStorage/OneDrive-UW-Madison/IOS-WIN/Econometric method/EMLearn/Software/R/study_R/Bruce_Econometrics/Econometrics Data/CK1994/CK1994.dta")
+data_CK1994 <- data_raw %>% 
+    # chain value label
+    mutate(chain = case_when(chain == 1 ~ "bk",
+                           chain == 2 ~ "kfc",
+                           chain == 3 ~ "roys",
+                           chain == 4 ~ "wendys")) %>%
+    # state value label
+    mutate(state = case_when(state == 1 ~ "New Jersey",
+                           state == 0 ~ "Pennsylvania")) %>%
+    # Region dummy
+    mutate(region = case_when(southj == 1 ~ "southj",
+                            centralj == 1 ~ "centralj",
+                            northj == 1 ~ "northj",
+                            shore == 1 ~ "shorej",
+                            pa1 == 1 ~ "phillypa",
+                            pa2 == 1 ~ "eastonpa")) %>%
+    # meals value label 
+    mutate(meals = case_when(meals == 0 ~ "none",
+                           meals == 1 ~ "free meals",
+                           meals == 2 ~ "reduced price meals",
+                           meals == 3 ~ "both free and reduced price meals")) %>% 
+    mutate(emptot = empft + nmgrs + .5*emppt, 
+           # number of employee (full-time + managers + .5* part-time)
+           pct_fte = empft/emptot*100
+           # percentage of full-time employee
+           )
+```
+
+#### Descriptive statistics
+
+```{r}
+# Distribution of restaurants
+data_CK1994 %>% 
+    select(chain, state) %>% 
+    table() %>% 
+    prop.table(margin = 2) %>% 
+    apply(MARGIN = 2,
+          FUN = scales::percent_format(accuracy = 0.01)) %>% 
+    noquote() %>% 
+    knitr::kable()
+
+# Pre-treatment means
+data_CK1994 %>% 
+    filter(time == 0) %>% 
+    group_by(state) %>% 
+    summarise(emptot = mean(emptot, na.rm = TRUE),
+              pct_fte  = mean(pct_fte, na.rm = TRUE),
+              wage_st = mean(wage_st, na.rm = TRUE),
+              hoursopen = mean(hoursopen, na.rm = TRUE)) %>% 
+    pivot_longer(cols = -state,
+                 names_to = "variable") %>% 
+    pivot_wider(names_from = state, values_from = value) %>% 
+    knitr::kable(digits = 2,
+                 caption = "Pre-treatment means 2/15/1992 – 3/4/1992") 
+
+# Post-treatment means
+data_CK1994 %>% 
+    filter(time == 1) %>% 
+    group_by(state) %>% 
+    summarise(emptot = mean(emptot, na.rm = TRUE),
+              pct_fte  = mean(pct_fte, na.rm = TRUE),
+              wage_st = mean(wage_st, na.rm = TRUE),
+              hoursopen = mean(hoursopen, na.rm = TRUE)) %>% 
+    pivot_longer(cols = -state,
+                 names_to = "variable") %>% 
+    pivot_wider(names_from = state, values_from = value) %>% 
+    knitr::kable(digits = 2,
+                 caption = "Post-treatment means 11/5/1992 – 12/31/1992") 
+
+```
+
+#### Figure 1
+
+```{r}
+# Figure 1
+hist_feb <- data_CK1994 %>% 
+    filter(time == 0) %>% 
+    ggplot(aes(wage_st, fill = state)) +
+    geom_histogram(aes(y = c(..count..[..group.. ==1]/sum(..count..[..group..==1]),
+                             ..count..[..group.. ==2]/sum(..count..[..group..==2]))*100),
+                   alpha = .5, position = "dodge", bins = 23) +
+    labs(title = "February 1992", x = "Wage range", y = "Percent of stores", fill = "") +
+    scale_fill_grey()
+
+hist_nov <- data_CK1994 %>% 
+    filter(time == 1) %>% 
+    ggplot(aes(wage_st, fill = state)) +
+    geom_histogram(aes(y = c(..count..[..group.. ==1]/sum(..count..[..group..==1]),
+                             ..count..[..group.. ==2]/sum(..count..[..group..==2]))*100),
+                   alpha = .5, position = "dodge", bins = 23) +
+    labs(title = "February 1992", x = "Wage range", y = "Percent of stores", fill = "") +
+    scale_fill_grey()
+library(ggpubr)
+ggarrange(hist_feb, hist_nov, ncol = 2, 
+          common.legend = TRUE, legend = "bottom")
+```
+
+
+#### Calculating the treatment effect
+
+```{r}
+# First differences
+diff_express <- data_CK1994 %>% 
+    group_by(time, state) %>% 
+    summarise(emptot = mean(emptot, na.rm = T)) %>% 
+    pivot_wider(names_from = state, values_from = emptot) %>% 
+    mutate(diff = `New Jersey` - `Pennsylvania`)
+# The Average Treatment Effect (ATT)
+diff_express$diff[2] - diff_express$diff[1]
+```
+
+
+#### Calculating the DID estimator
+
+```{r}
+data_CK1994_mod <- data_CK1994 %>% 
+    mutate(treated = ifelse(state == "New Jersey", ifelse(time == 1, 1, 0), 0))
+
+did_mod <- lm(emptot ~ treated + time + factor(state), data = data_CK1994_mod)
+coeftest(did_mod, vcov = function(x) vcovHC(x, cluster = "group", type = "HC1"))
+
+panel_did <- plm(emptot ~ treated + time + factor(state),
+                 data = data_CK1994_mod,
+                 model = "within",
+                 index = "store")
+coeftest(panel_did, vcov = function(x) vcovHC(x, cluster = "group", type = "HC1"))
+
+```
+
+
+
+
+
+
+
+
+
+
+
+

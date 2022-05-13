@@ -1,0 +1,161 @@
+---
+title: "Webscrape3: Parsing company 10-K from the SEC"
+author: "Weiheng Zhang"
+date: '2022-04-30'
+output: html_document
+---
+
+```{r setup, warning=FALSE, message=FALSE}
+library(FinMetric)
+library(httr)
+library(jsonlite)
+library(xml2)
+library(rvest)
+```
+
+```{r}
+# define the base url needed to create the file url
+base_url <- "https://www.sec.gov"
+
+# 10-K form from the last note
+# https://www.sec.gov/Archives/edgar/data/1000683/0001213900-19-005351.txt
+# document url
+document_url <- "https://www.sec.gov/Archives/edgar/data/1000683/000121390019005351/index.json"
+# this url contain the html file that we can parse
+
+content <- fromJSON(document_url)
+files <- content$directory$item
+
+xml_summary <- files %>% 
+    filter(name == "FilingSummary.xml") %>% 
+    pull(name) %>% 
+    paste0(base_url, content$directory$name, "/", .)
+# open in chrome
+xml_summary
+```
+
+# Parse the filling summary
+
+The main tags we will be concerned with a re the following:
+
+* `HtmlFileName`- this is the name of the file and will be needed to build the file url.
+* `LongName` - this is the long name of the report, with it's ID. Keep in mind the ID can be leverage in other 10Ks of other companies, but unfortunately it is not always guaranteed.
+* `ShortName` - The short name of the report. This is suprisingly more consistent across companies compared to the long name with includes the ID.
+* `MenuCategory` - This can be though of as a category the report falls under, a table, notes, detailes, cover or statements. This will be leveraged as another filter mechanism.
+* `Position` - This is the position of the report in the main document and also corresponds to the `HtmlFileName`.
+
+```{r}
+# define a new base url that represents the filling folder. This will come in handy when we need to download the reports
+UA <- "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:93.0) Gecko/20100101 Firefox/93.0"
+master_files <- httr::GET(xml_summary, 
+                       httr::add_headers(`Connection` = "keep-alive", `User-Agent` = UA)) %>% 
+    content(type = "text") %>% 
+    read_xml()
+# define the list length to remove the last <Report> tag (summary information)
+file_length <- master_files %>% 
+    xml_find_all("//Report") %>% 
+    {length(.) - 1}
+
+report_file <- list()
+for (attr in c("ShortName", "LongName", "Position", "MenuCategory", "HtmlFileName")){
+    report_file[[attr]] <- master_files %>% 
+    xml_find_all(paste0('//', attr)) %>% 
+    xml_text() %>% 
+    .[1:file_length]
+}
+report <- as.data.frame(report_file)
+report$HtmlFileName <- paste("https://www.sec.gov/Archives/edgar/data/1000683/000121390019005351", report$HtmlFileName, sep = "/")
+head(report)
+```
+
+# Grabbing the Financial Statements
+
+We now have a nice organized list of all the different components of the 10-K filling, while it won't have all the info it makes the process of getting the data tables a log easier We can always revist the actual text but at this point let's move forward assuming that we want to get the company financial statements. This will include the following:
+
+* Balance Sheet
+* Statement of Cash Flows
+* Income Statement
+* Statement of Stock Holder Equity
+
+
+```{r}
+# create the list to hold the statement urls
+# this is the short name
+name <- c("balance_sheet" = "Consolidated Balance Sheets",
+           "income_statement" = "Consolidated Statements of Operations and Comprehensive (Loss) Income",
+           "stock_holder_equity" = "Consolidated Statements of Stockholders' Equity",
+           "statement_cash_flow" = "Consolidated Statements of Cash Flows (Unaudited)") 
+statements_url <- report %>% 
+    filter(ShortName %in% name) %>% 
+    select(HtmlFileName) %>% 
+    pull()
+
+
+# Let's assume we want all the statements in a single data set (list object)
+statements_data <- list()
+
+for (statement in statements_url){
+     table_name <- names(name[name == report$ShortName[report$HtmlFileName == statement]])
+     file_name <- paste0(table_name, ".htm")
+     down_success <- download_file(statement, dfile = file_name)
+     if(down_success){
+         statements_data[[table_name]] <- read_lines(file_name) %>%
+             paste(collapse = "\n") %>%
+             read_html() %>%
+             html_nodes(".report") %>%
+             html_table() %>%
+             .[[1]]
+     }
+     file.remove(file_name)
+}
+```
+
+* **Don't use for loop to scrape four statement because their structure are different!!!**
+
+```{r}
+# Define accounting convert function
+negative_paren <- function(vec){
+  #the backspace escapes the special "(" character
+  vec <- gsub("\\(","-",vec) 
+  vec <- gsub("\\)","",vec)
+  return(vec)
+}
+# Balance sheet
+# convert the character to numeric
+statements_data[[1]][, -1] <- lapply(statements_data[[1]][, -1], 
+                                             negative_paren)
+statements_data[[1]][, -1] <- lapply(statements_data[[1]][, -1], 
+                                             readr::parse_number)
+
+
+# Income Statement
+colnames(statements_data[[2]]) <- statements_data[[2]][1, ]
+statements_data[[2]] <- statements_data[[2]][-1, ]
+statements_data[[2]][, -1] <- lapply(statements_data[[2]][, -1], 
+                                             negative_paren)
+statements_data[[2]][, -1] <- lapply(statements_data[[2]][, -1], 
+                                             readr::parse_number)
+
+#  Stockholders' Equity
+statements_data[[3]][, -1] <- lapply(statements_data[[3]][, -1], 
+                                             negative_paren)
+statements_data[[3]][, -1] <- lapply(statements_data[[3]][, -1], 
+                                             readr::parse_number)
+
+# Statements of Cash Flows
+colnames(statements_data[[4]]) <- statements_data[[4]][1, ]
+statements_data[[4]] <- statements_data[[4]][-1, ]
+statements_data[[4]][, -1] <- lapply(statements_data[[4]][, -1], 
+                                             negative_paren)
+statements_data[[4]][, -1] <- lapply(statements_data[[4]][, -1], 
+                                             readr::parse_number)
+```
+
+
+```{r}
+head(statements_data$balance_sheet) %>% 
+    knitr::kable()
+
+head(statements_data$statement_cash_flow) %>% 
+    knitr::kable()
+```

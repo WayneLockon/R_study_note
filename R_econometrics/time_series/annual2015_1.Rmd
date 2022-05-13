@@ -1,0 +1,27 @@
+---
+title: "Time sereis1"
+author: "Weiheng Zhang"
+date: '2022-04-15'
+output: pdf_document
+---
+
+# Time series basics
+
+* a sequence of random variables $Y_t$, autocovariances: $\gamma_{t, k} = cov(Y_t, Y_{t + k})$; autocorrelations: $\rho_{t, k} = corr(Y_t, Y_{t + k})$.
+
+* **Covariance Stationarity**: $\mu_t = E(Y_t) = \mu$ and $\gamma_{t, k} = \gamma_k, \forall t, k$.
+
+* AP(p) process: $\phi(L)Y_t = \varepsilon_t$, where $\phi(L) = (1 - \phi_1 L - \cdots - \phi_pL^p)$ and $\varepsilon_t$ is white noise.
+
+* MA(q) process: $Y_t = \theta(L)\varepsilon_t$ where $\theta(L) = (1 - \theta_1L - \cdots - \theta_q L^q)$ and $\varepsilon_t$ is white noise.
+
+* ARMA(p, q): $\phi(L)Y_t = \theta(L)\varepsilon_t$
+
+* **Wold decomposition** theorem: If there is a covariance stationary series, then I can break $Y_t$ into $\varepsilon$ pieces, which is uncorrelated with each other. 
+
+$$Y_t = \varepsilon_t + c_1 \varepsilon_{t - 1} + \cdots$$
+
+where $\varepsilon_t$ is white noise with variance $\sigma_\varepsilon^2, \sum_{i = 1}^\infty c_i^2<\infty$ and $\varepsilon_t = Y_t - Proj(Y_t|\text{lags of} Y_t)$.
+
+
+23:54

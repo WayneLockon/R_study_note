@@ -1,0 +1,92 @@
+---
+title: "Microeconometrics"
+author: "Weiheng Zhang"
+date: '2022-04-21'
+output: pdf_document
+---
+
+```{r, include=FALSE}
+library(FinMetric)
+```
+
+# Censored Data
+
+$$\begin{aligned}
+DGP: y_i^* &= a + bx_i + v_i\\
+y_i &= \begin{cases} y_i^* \text{ if } y_i^*>0 \\
+0 \text{ if } y_i^*\leq 0 \\
+\end{cases}
+\end{aligned}$$
+
+```{r}
+set.seed(1)
+N <- 500
+a <- 2
+b <- -3
+x <- runif(N)
+u <- rnorm(N)
+y_star <- a + b*x + u
+y <- ifelse(y_star>0, y_star, 0)
+lm1 <- lm(y ~ x)
+coeftest(lm1, vcov = vcovHC, type = "HC1")
+
+local_lm2 <- lm(y[x<.2]~x[x<0.2])
+
+ggplot(data.frame(y = y, x = x, y_star = y_star), aes(x, y))+
+    geom_point() +
+    geom_abline(slope = b,
+                intercept = a, linetype = 1, show.legend = T) +
+    geom_abline(slope = lm1$coefficients[2],
+                intercept = lm1$coefficients[1], linetype = 2, show.legend = T) + 
+    geom_vline(xintercept = .2, color = "red") +
+    geom_smooth(data = data.frame(y = y[x<.2], x = x[x<.2]), method = "lm", se = F)
+
+coeftest(local_lm2, vcov = vcovHC, type = "HC1")
+
+y_binary <- ifelse(y > 0, 1, 0)
+probit <- glm(y_binary ~ x, family = binomial(link = "probit"))
+coeftest(probit, vcov = vcovHC, type = "HC1")
+```
+
+
+## Tobit model
+
+```{r}
+ggplot(data.frame(y), aes(x = y, y = ..density..)) + geom_histogram()
+
+log_lik <- function(par, y, X){
+    X <- cbind(1, X)
+    sigma <- exp(par[1])
+    beta <- par[2:length(par)]
+    is0 <- y == 0
+    z <- (y - X %*% beta)/sigma
+    log_lik <- -sum(is0*log(pnorm(z))+ 
+                        (1 - is0)*(log(dnorm(z))- log(sigma))) 
+    return(log_lik)
+}
+par1 <- c(0, lm1$coefficients)
+a1 <- optim(par = par1, fn = log_lik, y = y, X = x)
+
+a1$par[2:length(a1$par)]
+```
+
+
+# Modeling selected Data
+
+$$\begin{aligned}
+y_i^* &= a + bx_i + v_{2i}\\
+y_i &= \begin{cases}
+y_i^* \text{ if } c + dz_i + v_{1i} \geq 0\\
+0 \text{ if } c + dz_i + v_{1i} < 0
+\end{cases}
+\end{aligned}$$
+
+
+
+
+
+
+
+
+
+

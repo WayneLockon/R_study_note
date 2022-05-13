@@ -1,0 +1,222 @@
+---
+title: "TSRethinking11 Cointegration"
+author: "Wayne Zhang"
+date: "10/9/2021"
+output:
+  html_document: 
+    toc: yes
+    toc_depth: 4
+    number_sections: true
+---
+\newcommand{\df}[1]{\textbf{Define #1}}
+\newcommand{\remark}{\textbf{Remark}}
+
+## Define Cointegration
+
+\df{cointegration}: $Y_t$ and $X_t$ are non-stationary variables. If there exists $\beta$ such that $Y_t - \beta X_t = u_t$ is stationary, then we say that $Y_t$ and $X_t$ are cointegrated.
+
+\remark: 
+
+* If $Y_t\sim I(d), X_t\sim I(b)$, then we say $u_t\sim CI(d, b)$;
+* If $u_t$ is $I(1)$, integrated with order 1(after first difference the series will be stationary), then $Y_t$ and $X_t$ are not cointegrated; meanwhile, regressing $Y_t$ on $X_t$ will yield a spurious result.
+
+### Common Trends
+
+Decomposition variables:
+
+$$Y_t = \mu_{y, t} + v_{y, t}\quad X_t = \mu_{x, t} + v_{x, t}$$
+
+where $\mu_{i, t}$ is the stochastic trend part, and $v_{i, t}$ is the stationary component.
+
+Assume $\beta_y \mu_{y, t} + \beta_x \mu_{x, t} = 0$, then we have $\beta_y Y_t  + \beta_x X_t = \beta_y  v_{y, t} + \beta_x v_{x, t}$ are stationary. Thus, $Y_t$ and $X_t$ are cointegration.
+
+```{r}
+library(vars)
+library(tidyverse)
+library(xts)
+library(zoo)
+library(FinCal)
+
+gold_ores <- fred("PCU2122212122210", "1985-06-01", "2017-12-01")[, -1]
+silver <- fred("WPU159402", "1985-06-01", "2017-12-01")[, -1]
+
+dat_ts <- xts(cbind(gold_ores$price, silver$price), order.by = silver$date)
+colnames(dat_ts) <- c("gold", "silver")
+ggplot(data = dat_ts) +
+    geom_line(aes(x = index(dat_ts), y = gold), color = "blue") +
+    geom_line(aes(x = index(dat_ts), y = silver), color = "green")
+
+# unit root tests (augmented Dickey-Fuller test)
+adft1 <- ur.df(dat_ts$gold, type = "trend", selectlags = c("BIC"))
+summary(adft1) 
+# the null of a unit root of test statistic is -1.5054
+# the critical values are -3.98 -3.42 -3.13 for the 1%, 5% and 10% significance levels
+# Thus, we cannot reject the null hypothesis; F statistic tells us that we cannot reject the trend;
+
+adft2 <- ur.df(dat_ts$gold, type = "drift", selectlags = c("BIC"))
+summary(adft2) # there is drift
+
+adft3 <- ur.df(dat_ts$gold, type = "none", selectlags = c("BIC"))
+summary(adft3)
+
+adft4 <- ur.df(na.omit(diff(dat_ts$gold)), selectlags = c("BIC"))
+summary(adft4) # this test is to check it is I(2) time series or not;
+# the test result tells us it does not I(2)
+
+# we can do the same thing for silver variable
+```
+
+
+## Error Correction Models
+
+## Deriving a measure of the real equilibrium exchange rate
+
+```{r}
+dat <- read.csv(file = "/Users/waynezhang/Library/CloudStorage/OneDrive-UW-Madison/IOS-WIN/Econometric method/EMLearn/Topics/Undo/Time_Series/LectureNotes/T10-coint/Mac_Ric.csv")
+dat_end_ts <- xts(dat[, c("LREERS", "RIRR", "LRGDPPCR", "LPR2COMM5", 
+    "OPENY", "FBYA", "NFAOFPY")], order.by = anytime::anydate(dat[, 1]))
+# LREERS: the logarithm of real effective exchange rate
+# RIRR: real interest rate relative to trading partners
+# LRGDPPCR: logarithm of real GDP per capita relative to trading partners
+# LPR2COMM5: real commodity prices;
+# OPENY: openness (ratio to GDP of exports and imports);
+# FBYA: ratio of fiscal balance to GDP;
+# NFAOFPY: the ratio to GDP of net foreign assets of the banking system
+plot(as.ts(dat_end_ts))
+
+# exodogenous variable
+dat_exo_ts <- xts(dat[, c("SDUMC1", "SDUMC2", "SDUMC3", "DUMRER1", 
+    "DUMRER2", "DUMFBYA", "NFAOFPY")], order.by = anytime::anydate(dat[, 1]))
+plot(as.ts(dat_exo_ts))
+```
+
+### Estimate the model
+
+```{r}
+dat.VAR <- cbind(dat$LREERS, dat$RIRR, dat$LRGDPPCR, dat$LPR2COMM5, 
+    dat$OPENY, dat$FBYA, dat$NFAOFPY)
+colnames(dat.VAR) <- c("LREERS", "RIRR", "LRGDPPCR", "LPR2COMM5", 
+    "OPENY", "FBYA", "NFAOFPY")
+dat.EXO <- cbind(dat$SDUMC1, dat$SDUMC2, dat$SDUMC3, dat$DUMRER1, 
+    dat$DUMRER2, dat$DUMFBYA, dat$DUMNFAOFPY)
+colnames(dat.EXO) <- c("SDUMC1", "SDUMC2", "SDUMC3", "DUMRER1", 
+    "DUMRER2", "DUMFBYA", "NFAOFPY")
+
+VAR.est <- VAR(dat.VAR, p = 4, type = "const", season = NULL, 
+    exog = dat.EXO)
+summary(VAR.est)
+
+# VAR.est <- VAR(dat_end_ts, p = 4, type = "const", season = NULL, 
+#     exog = dat_exo_ts)
+# summary(VAR.est)
+```
+
+#### Test cointegration
+
+Now to ensure that the variables are cointegrated we need to run the Johansen test. To perform the trace test we use the command:
+
+```{r}
+H1.trace <- ca.jo(dat.VAR, ecdet = c("const"), type = "trace", 
+    K = 4, season = NULL, dumvar = dat.EXO)
+summary(H1.trace)
+```
+
+the test statistic of r = 0, is 143.54, which is greater than critical value (143.09), which means it is not $I(0)$. and with higher probability is $I(1)$
+
+```{r}
+# same test based on eigen value
+H1.eigen <- ca.jo(dat.VAR, ecdet = c("const"), type = "eigen", 
+    K = 4, season = NULL, dumvar = dat.EXO)
+summary(H1.eigen)
+```
+
+The result is similar.
+
+* Construct a exogenity test, based on the speed of adjustment and long-run coefficients.
+
+```{r}
+beta <- H1.trace@V # this is S4 type
+alpha <- H1.trace@W
+A1 <- t(matrix(c(0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 
+    1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 
+    0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1), nrow = 6, ncol = 7))
+A1
+
+H2 <- (alrtest(z = H1.trace, A = A1, r = 1))
+summary(H2)
+```
+
+In this case the p-value is 0.37, which would suggest that we cannot reject the null that the first variable (i.e. the real exchange rate) is weakly exogenous. 
+
+
+## Testing additional restrictions on the cointegrated VAR
+
+```{r}
+rm(list = ls())
+
+dat <- read.csv("/Users/waynezhang/Library/CloudStorage/OneDrive-UW-Madison/IOS-WIN/Econometric method/EMLearn/Topics/Undo/Time_Series/LectureNotes/T10-coint/Canada.csv")
+
+Canada <- xts(dat[, 2:5], order.by = anytime::anydate(dat[, 1]))
+
+plot(as.ts(Canada), nc = 2)
+# e: the logarithm of employment
+# rw: the real wage
+# prod: productivity
+# U the unemployment rate
+
+```
+
+**Unit root test**
+
+* type `none`: $\Delta y_t = \gamma \, y_{t-1} + e_t$
+* type `drift`: $\Delta y_t = a_0 + \gamma \, y_{t-1} + e_t$
+* type `trend`: $\Delta y_t = a_0 + \gamma * y_{t-1} + a_{2}t + e_t$
+
+```{r}
+# test cointegration
+summary(ur.df(Canada[, "prod"], type = "trend", lags = 2))
+summary(ur.df(diff(Canada[, "prod"])[-1, ], type = "drift", lags = 1))
+summary(ur.df(Canada[, "e"], type = "trend", lags = 2))
+summary(ur.df(diff(Canada[, "e"])[-1, ], type = "drift", lags = 1))
+summary(ur.df(Canada[, "U"], type = "drift", lags = 1))
+summary(ur.df(diff(Canada[, "U"])[-1, ], type = "none", lags = 0))
+summary(ur.df(Canada[, "rw"], type = "trend", lags = 4))
+summary(ur.df(diff(Canada[, "rw"])[-1, ], type = "drift", lags = 3))
+summary(ur.df(diff(Canada[, "rw"])[-1, ], type = "drift", lags = 0))
+```
+
+
+### Estimate the model
+
+```{r}
+VARselect(Canada, lag.max = 8, type = "both")
+
+p1ct <- VAR(Canada, p = 1, type = "both")
+p2ct <- VAR(Canada, p = 2, type = "both")
+p3ct <- VAR(Canada, p = 3, type = "both")
+
+# test
+for(i in c("p1ct", "p2ct", "p3ct")){
+    serial.test(get(i), lags.pt = 16, type = "PT.asymptotic")
+    serial.test(get(i), lags.pt = 16, type = "PT.adjusted")
+    normality.test(get(i))
+    arch.test(get(i), lags.multi = 5)
+    plot(stability(get(i)), nc = 2)
+
+}
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+

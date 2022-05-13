@@ -1,0 +1,158 @@
+---
+title: "Causal Inference6"
+author: "Weiheng Zhang"
+date: '2022-04-22'
+output: 
+    pdf_document:
+        extra_dependencies: ["amsfonts"]
+---
+
+# Regression Discountinuity Designs
+
+## Sharp RD
+
+This is a sharp RD because the probability of treatment switches from zero zero to one at the threshold.
+
+\begin{itemize}
+\item Basic Setup
+
+Suppose the treatment is a deterministic and discontinuous function of observed covariate $R_i$ such that
+    
+$$ D_i = 1\{X_i > c\}$$
+
+where $X_i$ is called the running variable or forcing variable. c is determined by policy or rule. An individual is untreated if D = 0 and is treated if D = 1.
+
+
+
+
+\item Identification
+
+The random individual treatment effect $\theta(x) = E[\theta|X = x]$ is the conditional ATE. $\bar\theta = \theta(c)$, the conditional ATE for the subpopulation at the cut-off.
+
+$$\begin{aligned}
+m(x) &= E[Y|X = x]\\
+m_0(x) &= E[Y_0|X = x]\\
+m_1(x) &= E[Y_1|X = x] \\
+\theta(x) &= m_1(x) - m_0(x)
+\end{aligned}$$
+
+\end{itemize}
+
+### Application Carpenter and Dobkin (2009)
+
+```{r}
+data(mm_mlda, package = "stevedata")
+# Scatterplot
+mm_mlda <- mm_mlda %>% 
+    drop_na()
+mm_mlda %>% 
+    ggplot(aes(x = agecell, y = all)) +
+    geom_point() +
+    geom_vline(xintercept = 21, color = "red", linetype = "dashed") +
+    annotate("text", x = 20.4, y = 105, label = "Minimum Drinking Age") +
+    labs(y = "Mortality rate (per 100.000)",
+         x = "Age (binned)")
+```
+
+```{r}
+# Estimate the model (same slopes)
+
+# Create threshold variable
+mm_mlda$threshold <- ifelse(mm_mlda$agecell >= 21, 1, 0)
+lm_same_slope <- mm_mlda %>% 
+    lm(all ~ threshold + I(agecell - 21), .)
+summary(lm_same_slope)
+
+# Scatterplot
+mm_mlda %>% 
+    select(agecell, all, threshold) %>% 
+    mutate(fit = predict(lm_same_slope)) %>% 
+    ggplot() +
+    geom_point(aes(x = agecell, y = all, color = factor(threshold))) +
+    geom_line(aes(x = agecell, y = fit, group = threshold)) +
+    geom_vline(xintercept = 21, color = "red", linetype = "dashed") +
+    guides(color = FALSE) +
+    labs(y = "Mortality rate (per 100.000)",
+         x = "Age (binned)")
+```
+
+
+```{r}
+# Estimate the model (different slopes)
+
+lm_different_slope <- mm_mlda %>% 
+    lm(all ~ threshold + I(agecell - 21) + threshold:I(agecell - 21), data = .)
+summary(lm_different_slope)
+
+# Scatterplot
+mm_mlda %>% 
+    select(agecell, all, threshold) %>% 
+    mutate(fit = predict(lm_different_slope)) %>% 
+    ggplot() +
+    geom_point(aes(x = agecell, y = all, color = factor(threshold))) +
+    geom_line(aes(x = agecell, y = fit, group = threshold)) +
+    geom_vline(xintercept = 21, color = "red", linetype = "dashed") +
+    guides(color = FALSE) +
+    labs(y = "Mortality rate (per 100.000)",
+         x = "Age (binned)")
+```
+
+```{r}
+# More complicated functional form
+
+lm_quadratic <- mm_mlda %>% 
+    lm(all ~ threshold + I(agecell - 21) + I((agecell - 21)^2) + 
+           threshold:I(agecell - 21) + threshold:I((agecell - 21)^2), data = .)
+summary(lm_quadratic)
+# treatment effect 9.5478
+
+# Scatterplot
+mm_mlda %>% 
+    select(agecell, all, threshold) %>% 
+    mutate(fit = predict(lm_quadratic)) %>% 
+    ggplot() +
+    geom_point(aes(x = agecell, y = all, color = factor(threshold))) +
+    geom_line(aes(x = agecell, y = fit, group = threshold)) +
+    geom_vline(xintercept = 21, color = "red", linetype = "dashed") +
+    guides(color = FALSE) +
+    labs(y = "Mortality rate (per 100.000)",
+         x = "Age (binned)")
+```
+
+```{r}
+# sensitivity analysis (local regression)
+lm_sensitivity <- mm_mlda %>%
+  filter(agecell >= 20 & agecell <= 22) %>%
+  mutate(threshold = ifelse(agecell >= 21, 1, 0)) %>% 
+  lm(all ~ threshold + I(agecell - 21) + threshold:I(agecell - 21), data = .)
+
+summary(lm_sensitivity)
+```
+
+
+## Fuzzy RD
+
+```{r}
+library(MASS)
+
+# generate sample data
+mu <- c(0, 0)
+sigma <- matrix(c(1, 0.7, 0.7, 1), ncol = 2)
+
+set.seed(1234)
+d <- as.data.frame(mvrnorm(2000, mu, sigma))
+colnames(d) <- c("W", "Y")
+
+# introduce fuzziness
+d$treatProb <- ifelse(d$W < 0, 0, 0.8)
+
+d$fuzz <- sapply(X = d$treatProb, FUN = function(x) rbinom(1, 1, prob = x))
+
+# treatment effect
+d$Y <- d$Y + d$fuzz * 2
+
+ggplot(d, aes(x = W, y = Y, color = factor(fuzz))) +
+    geom_point() +
+    scale_color_manual(values = c("steelblue", "darkred"))
+```
+

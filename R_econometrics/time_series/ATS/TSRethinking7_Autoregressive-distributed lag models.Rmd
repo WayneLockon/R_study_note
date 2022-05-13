@@ -1,0 +1,17 @@
+---
+title: "TSRethinking7 Autoregressive-distributed lag models"
+author: "Wayne Zhang"
+date: "10/9/2021"
+output:
+  html_document: 
+    toc: yes
+    toc_depth: 4
+    number_sections: true
+---
+\newcommand{\df}[1]{\textbf{Define #1}}
+\newcommand{\remark}{\textbf{Remark}}
+
+# Autoregressive-distributed lag models ADL
+
+## 
+

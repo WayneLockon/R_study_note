@@ -1,0 +1,244 @@
+---
+title: "TSRethinking1 Change points and structural breaks"
+author: "Wayne Zhang"
+date: "10/9/2021"
+output:
+  html_document: 
+    toc: yes
+    toc_depth: 4
+---
+\newcommand{\df}[1]{\textbf{Define #1}}
+
+```{r package, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(fig.width = 8, fig.height = 4)
+rm(list=ls())  # remove variables
+library(changepoint) # changing point
+library(strucchange) # structural change
+library(tidyverse)
+library(lubridate)
+library(FinCal)
+```
+
+
+Time series object:
+
+- `base`: `ts` object
+- `xts` or `zoo`, based on respected packages;
+- `tidyverse` object.
+
+## 1 Introduction
+
+Problem: Time series variables may be influenced by events that arise at various points in time that alter the underlying data generating process, which influence the results of many linear time series models.
+
+### 1.1 Change point detection
+
+\df{Changing point CP}: For TS $y_t = \{y_i\}_1^T$ there is a CP, a time, if $\exists \tau\in 1:(T - 1)$ s.t. $\{y_i\}_1^\tau, \{y_i\}_{\tau + 1}^T$ have different properties.
+
+#### Step 1 identify CP
+
+Hypothesis:
+
+$$\begin{aligned} H_0:& \text{ there are no CP}\\ H_1:& \exists \text{ a CP} \end{aligned}$$
+
+method: MLE, likelihood ratio test
+
+#### Step 2 detect the position of CPs
+
+detect multiple CPs: thought minimizing cost function + penalty function ($f(m)$ is a penalty function could take different information criteria, like AIC, BIC, etc.)
+
+$$\sum^{m+1}_{i=1} \left[ \mathcal{C} \left( y_{(\tau_{i-1}+1):\tau_{1}} \right) \right] + \beta f (m)$$
+
+- Binary segmentation (critique): apply single CP method to all data and the if there is a CP using the CP seperate futher subsample applying single CP test again.
+
+- Segment neighborhood: dynamic programming technique to get the optimal segmentation.
+
+- The pruned exact linear time (PELT) algorithm also provides an exact solution, but is more computationally efficient
+
+##### Change point in mean
+
+```{r simulate_mean}
+set.seed(123)
+sim_mean <- c(rnorm(100, 0, 1),
+              rnorm(50, 1.5, 1),
+              rnorm(90, 0, 1),
+              rnorm(120, -0.8, 1))
+qplot(1:length(sim_mean), sim_mean, geom = "path")
+
+# using changepoint package to identify the CP
+
+##1.  based on mean to detect changepoint
+###  binary segmentation method using BIC information criteria maximum of five breaks.
+m_binseg <- cpt.mean(sim_mean, penalty = "BIC", method = "BinSeg", Q = 5)
+plot(m_binseg, type = "l", xlab = "Index", cpt.width = 4)
+cpts(m_binseg) # the CP
+
+## segment neightborhood method using BIC 
+m_segneigh <- cpt.mean(sim_mean, penalty = "BIC", method = "SegNeigh", Q = 5)
+plot(m_segneigh, type = "l", xlab = "Index", cpt.width = 4)
+cpts(m_segneigh) # the CP
+
+## PELT
+m_pelt <- cpt.mean(sim_mean, penalty = "BIC", method = "PELT")
+plot(m_pelt, type = "l", xlab = "Index", cpt.width = 4)
+cpts(m_pelt) # the CP
+
+# *And should we wish, we can also impose a manual penalty with the aid of the following commands:
+m_pm <- cpt.mean(sim_mean, penalty = "Manual", pen.value = "1.5 * log(n)", # provide our own penalty function
+                      method = "PELT")
+plot(m_pm, type = "l", cpt.col = "blue", xlab = "Index", cpt.width = 4)
+cpts(m_pm)
+```
+
+```{r}
+# emperical data
+rgdp <- fred("GDPC1", "1947-01-01", "2021-04-01")[, -1] %>% 
+    mutate(growth = 100*(price/lag(price) - 1)) %>% 
+    drop_na()
+
+m_gdp <- rgdp  %>% 
+    pull(growth) %>% 
+    cpt.mean(., penalty = "SIC", method = "PELT")
+plot(m_gdp)
+cpts(m_gdp) # use this method directly we do not know the exact date of previous time
+cpt <- rgdp %>% 
+    slice(cpts(m_gdp))
+cpt
+```
+
+##### Change point in variance
+
+```{r}
+sim_var <- c(rnorm(100, 0, 1),
+              rnorm(50, 0, 2),
+              rnorm(90, 0, 1),
+              rnorm(120, 0, 0.5))
+qplot(1:length(sim_var), sim_var, geom = "path")
+
+
+##2. based on variance to to detect change point
+v_pelt <- cpt.var(sim_var, method = "PELT")
+plot(v_pelt, type = "l", cpt.col = "blue", xlab = "Index", cpt.width = 4)
+cpts(v_pelt)
+```
+
+
+```{r}
+# using gdp growth rate 
+v_gdp <- rgdp %>% 
+    pull(growth) %>% 
+    cpt.var(., method = "PELT")
+plot(v_gdp, type = "l", cpt.col = "red", cpt.width = 6)
+rgdp %>% 
+    slice(cpts(v_gdp))
+```
+
+##### Change points in the mean and variance
+
+```{r}
+sim_mv <- c(rnorm(100, 0, 1),
+             rnorm(50, 1, 2),
+             rnorm(90, 0, 1),
+             rnorm(120, -0.8, 0.5))
+
+plot.ts(sim_mv)
+
+mv_pelt <- cpt.meanvar(sim_mv, method = "PELT")
+plot(mv_pelt)
+cpts(mv_pelt)
+```
+
+
+```{r}
+mv_gdp <- rgdp %>% 
+    pull(growth) %>% 
+    cpt.meanvar(., method = "PELT")
+plot(mv_gdp, type = "l", cpt.col = "blue", xlab = "Index", cpt.width = 4)
+rgdp %>% 
+    slice(cpts(mv_gdp))
+```
+
+
+
+### 1.2  Structural break tests
+
+Problem: Term structural break is synonymous with change point, but would usually refer to cases where there is a change in the regression coefficients
+
+e.g.
+
+$$y_t =  x_t^{\top} \beta_j + \varepsilon_t \;\;\; j = \{ 1, \ldots, m+1 \}$$
+The hypothesis that the regression coefficients are constant may be constructed as:
+
+$$\begin{aligned}
+H_0 \; : \; \beta_j = \beta_0\\
+H_1 \; : \; \beta_j \neq \beta_0
+\end{aligned}$$
+
+This test is based on the residual, $\varepsilon_t$, constructing F-statistics:
+
+$$F_i = \frac{\hat{u}^\top\hat{u} - \hat{u}(\tau)^\top \hat{u}(\tau)}{\hat{u}(\tau)^\top \hat{u}(\tau) / \left(T-2k \right)}$$
+
+```{r}
+rm(list = ls())
+set.seed(123)
+
+x1 <- arima.sim(model = list(ar = 0.9), n = 100)
+x2 <- arima.sim(model = list(ma = 0.1), n = 100)
+x3 <- arima.sim(model = list(ar = 0.5, ma = 0.3), n = 100)
+
+y <- c((1 + x1),
+       x2,
+       (0.5 - x3))
+plot.ts(y)
+
+## strucchange to test structural change
+
+### Quandt likelihood ratio test
+
+dat <- tibble(ylag0 = y,
+              ylag1 = lag(y)
+              ) %>%
+  drop_na() # because we want to test AR(1) model so only need to generate one lag
+qlr <- Fstats(ylag0 ~ ylag1, data = dat) # generate the Quandt Likelihood Ratio (QLR) statistic
+breakpoints(qlr)
+
+sctest(qlr, type = "supF") # the significance values for structural break at this point is
+
+plot(qlr)
+
+### CUSUM test
+
+cusum <- efp(ylag0 ~ ylag1, type = "OLS-CUSUM", data = dat)
+plot(cusum) # this plot means the data does not contain a structural break.
+
+# this result is incorrect, as we did not define properly about structural break
+```
+
+
+```{r}
+rgdp_dat <- fred("GDPC1", "1947-01-01", "2021-04-01")[, -1] %>% 
+    mutate(growth = 100*(price/lag(price) - 1),
+           growth_lag = lag(growth)) %>% 
+    drop_na()
+sa_qlr <- Fstats(growth ~ growth_lag, data = rgdp_dat)
+breakpoints(sa_qlr)
+sctest(sa_qlr, type = "supF")
+plot(sa_qlr)
+rgdp_dat %>% 
+    slice(sa_qlr$breakpoint)
+```
+Similarly, we can perform the Bai and Perron (2003) test for multiple structural breaks with the aid of the following commands:
+
+```{r}
+sa_bp <- breakpoints(growth ~ growth_lag, data = rgdp_dat, breaks = 5)
+summary(sa_bp)  # where the breakpoints are
+
+plot(sa_bp, breaks = 5)
+
+rgdp_dat %>% slice(sa_bp$breakpoints)
+
+sa_cusum <- efp(growth ~ growth_lag, data = rgdp_dat, type = "OLS-CUSUM")
+plot(sa_cusum)
+```
+
+
+

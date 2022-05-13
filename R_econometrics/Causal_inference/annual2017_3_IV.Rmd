@@ -1,0 +1,148 @@
+---
+title: "Causal Inference3"
+author: "Weiheng Zhang"
+date: '2022-04-16'
+output: pdf_document
+---
+
+# Instrumental Variables
+
+## constant effects
+
+\begin{itemize}
+
+\item The constant effects framework focuses attention on the IV solution for \textbf{selection bias} and on essential IV mechanics
+
+$$y = \alpha + \rho s_i + \eta_i$$
+
+where $\eta_i = A_i'\gamma + v_i$ are correlated. IV allows us to estimate $\rho$ without $A$.
+
+\item The instrument, $z_i$, is assumed to be
+
+\begin{itemize}
+    \item correltated with the causal variale of interest, $s_i$;
+    \item uncorrelated with potential outcomes
+\end{itemize}
+
+Thus, we have 
+
+$$\begin{aligned}
+\rho &= \frac{Cov(y_i, z_i)}{Cov(s_i, z_i)} = \frac{\frac{Cov(y_i, z_i)}{Var(z_i)}}{\frac{Cov(s_i, z_i)}{Var(z_i)}}\\
+&= \frac{\text{reduced form}}{1st\ stage}
+\end{aligned}$$
+
+\item 2SLS Mistakes
+
+\begin{itemize}
+    \item Manual 2sls: the standard error is wrong.
+    
+    \item Covariate ambivalence: the covariates used in the first stage are different than the second stage.
+    
+    \item Forbidden regressions: 2sls is form linear model not for non-linear model.
+\end{itemize}
+
+\item The Bias of 2SLS
+
+\begin{itemize}
+    \item residuals in the first stage is correlated with the residuals in the second stage.
+    
+$$\begin{aligned}
+    y &= \beta x + \eta\\
+    x &= z\pi + \epsilon \\
+    \hat \beta_{2SLS} &= (x'P_z x)^{-1}x'P_z y = \beta + (x'P_z x)^{-1}x'P_z \eta\\
+    \Rightarrow \hat \beta_{2SLS} - \beta &= (x'P_z x)^{-1}(\pi'z' + \epsilon')P_z \eta\\
+    &= (x'P_z x)^{-1}\pi'z' \eta + \underbrace{(x'P_z x)^{-1}\epsilon'P_z \eta}_{\neq 0}
+    \end{aligned}$$
+    
+    \item weak IV
+    
+    Anderson-Rubin (AR-test)
+    
+    \item IV without bias or tears
+    
+    \begin{itemize}
+        \item Just-identified 2SLS (Wald estimator): The just-ID sampling distribution has no moments, yet it’s approximately centered where it should be unless the instruments are really weak
+        \item The Reduced Form: In just-identified models, the p-value for the reduced-form effect of the instrument is approximately the p-value from the second stage.
+        \item \textbf{LIML}:  is approximately median-unbiased for over-identified constant-effects models, and therefore provides an attractive alternative to just-identified estimation using one instrument at a time
+    \end{itemize}
+\end{itemize}
+
+\end{itemize}
+
+
+## heterogeneous potential outcomes
+
+
+\begin{itemize}
+ 
+\item Constant-Effects Benchmark
+
+$$\begin{aligned}
+Y_{0i} &= \alpha + \eta_i\\
+Y_{1i} - Y_{0i} &= \rho\\
+Y_i &= Y_{0i} + D_i(Y_{1i} - Y_{0i}) = \alpha + \rho D_i + \eta_i
+\end{aligned}$$
+
+\item Example: Children and Their Parents Labor Supply
+
+\begin{itemize}
+\item setting
+
+$$Y_i = Y_{0i} + D_i(Y_{1i} - Y_{0i}) = \alpha + \rho D_i + \eta_i$$
+
+where $D_i = 1\{kids >2\}$ for samples of mothers with at least two children; $z_i$ indicates twins or same-sex sibships at second birth; $Y_i$ employment hours worked, weeks worked, earnings.
+
+The Wald formula:
+
+$$\rho = \frac{Cov(Y_i, z_i)}{Cov(D_i, z_i)} = \frac{E[Y_i|z_i = 1] - E[Y_i|z_i = 0]}{E[D_i|z_i = 1] - E[D_i|z_i = 0]}$$
+\item The local average treatment effect (LATE) framework
+
+Let $Y_i(d, z)$ denote the potential outcome of individual i were this person to have treatment status $D_i = d$ and $Z_i = z$
+
+We assume, however, that IV initiates a causal chain: the instrument, $Z_i$ , affects $D_i$ , which in turn affects $Y_i$.
+
+$D_{1i}$ is the i's treatment status when $z_i = 1$;
+$D_{0i}$ is the i's treatment status when $z_i = 0$;
+
+$$D_i = D_{0i} + (D_{1i} - D_{0i})Z_i$$
+
+we eliminate $Y(1, 0)$ case.
+
+Assumption:
+
+\begin{itemize}
+\item Independence. The instrument is as good as randomly assigned
+\item Exclusion(May not hold). The instrument affects $Y_i$ only through $D_i$ 
+$$\begin{aligned}
+Y_{1i}:= Y_i(1, 1) = Y_i(1, 0)\\
+Y_{0i}:= Y_i(0, 1) = Y_i(0, 0)
+\end{aligned}$$
+\item Monotonicity. $D_{1i} > D_{0i}$ for everyone (or vice versa).
+\end{itemize}
+
+The LATE theorem:
+
+$$\frac{E[Y_i|z_i = 1] - E[Y_i|z_i = 0]}{E[D_i|z_i = 1] - E[D_i|z_i = 0]} = E[Y_{1i} - Y_{0i}|D_{1i} > D_{0i}]$$
+
+\end{itemize}
+
+
+
+
+
+\end{itemize}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

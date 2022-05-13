@@ -1,0 +1,108 @@
+---
+title: "Webscrape daily index"
+author: "Weiheng Zhang"
+date: '2022-04-30'
+output: html_document
+---
+
+```{r}
+suppressPackageStartupMessages(library(FinMetric))
+library(knitr)
+hook_output <- knit_hooks$get("output")
+knit_hooks$set(output = function(x, options) {
+  lines <- options$output.lines
+  if (is.null(lines)) {
+    return(hook_output(x, options))  # pass to default hook
+  }
+  x <- unlist(strsplit(x, "\n"))
+  more <- "..."
+  if (length(lines)==1) {        # first n lines
+    if (length(x) > lines) {
+      # truncate the output, but add ....
+      x <- c(head(x, lines), more)
+    }
+  } else {
+    x <- c(more, x[lines], more)
+  }
+  # paste these lines together
+  x <- paste(c(x, ""), collapse = "\n")
+  hook_output(x, options)
+})
+library(httr)
+library(jsonlite)
+setwd("/Users/waynezhang/Library/CloudStorage/OneDrive-UW-Madison/IOS-WIN/Econometric method/EMLearn/Software/R/R_study_note/R_web/EDGAR")
+```
+
+```{r}
+# let's first make a function that will make the process of building a url easy
+make_url <- function(base_url, comp){
+    return(paste(base_url, paste(comp, collapse = "/"), sep = "/"))
+}
+
+# for example
+base_url = "https://www.sec.gov/Archives/edgar/data"
+compoents = c("886982", "000156459022016861", "0001564590-22-016861-index-headers.html")
+make_url(base_url, compoents)
+```
+
+* /Archives/edgar/daily-index — daily index files through the current year;
+    * company — sorted by company name
+    * form — sorted by form type
+    * master — sorted by CIK number
+    * XBRL — list of submissions containing XBRL financial files, sorted by CIK number; these include Voluntary Filer Program submissions
+    
+    
+Here we will focus on master file such that to analyze.
+
+```{r, output.lines = 10}
+# base url for the daily idnex files
+base_url <- "https://www.sec.gov/Archives/edgar/daily-index/"
+year_url <- make_url(base_url, c("2019", "index.json"))
+
+# Request the 2019 url
+decoded_content <- fromJSON(year_url)
+
+# get the name of the folder
+for (folder in decoded_content$directory$item$name){
+    qtr_url = make_url(base_url, c("2019", folder, "index.json"))
+    print(qtr_url)
+    # request the url and decoded
+    file_content <- fromJSON(qtr_url)
+    for (file in file_content$directory$item$name){
+        file_url <- make_url(base_url, c("2019", folder, file, "index.json"))
+        print(file_url)
+    }
+    print(strrep("_", 100))
+}
+```
+
+
+```{r}
+# define a master file url
+file_url <- "https://www.sec.gov/Archives/edgar/daily-index/2019/QTR2/master.20190401.idx"
+
+# lets write the content to a text file
+filename <- "master.20190401.txt"
+download_success <- FinMetric::download_file(file_url, filename)
+if(download_success){
+    temp.data <- gsub("'", "", readLines(filename))
+    # writting back to storage
+    writeLines(temp.data, filename)
+    # Find line number where header description ends
+    header.end <- grep("--------------------------------------------------------", temp.data)
+    scrapped.data <- scan(filename, what = list("", "", "", "", ""), flush = F, skip = header.end, sep = "|", 
+                quiet = T)
+    final.data <- data.frame(cik = scrapped.data[[1]], 
+                             company_name = scrapped.data[[2]], 
+                             form_type = scrapped.data[[3]], 
+                             date_filed = scrapped.data[[4]], 
+                             file_name = scrapped.data[[5]])
+}
+head(final.data)
+
+# loop through the master data set
+final.data %>% 
+    filter(form_type == "10-K") %>% 
+    head()
+```
+

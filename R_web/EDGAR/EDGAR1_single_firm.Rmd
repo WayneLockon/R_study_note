@@ -1,0 +1,49 @@
+---
+title: "Webscrape single company's files"
+author: "Weiheng Zhang"
+date: '2022-04-30'
+output: html_document
+---
+
+```{r}
+library(httr)
+library(jsonlite)
+# Basic url
+base_url = "https://www.sec.gov/Archives/edgar/data"
+cik_num = "/886982/"
+fillings_url = paste0(base_url , cik_num , "/index.json")
+
+# Parse returned text with fromJSON()
+
+decoded_content <- fromJSON(fillings_url)
+
+# go and grab a single filling number
+filling_number = decoded_content$directory$item$name[1]
+
+# define our filling number url
+
+filling_url <- paste0(base_url, cik_num, filling_number, "/index.json")
+filling_url
+
+# Let's request the url
+content <- fromJSON(filling_url)
+
+# get the document names
+document <- content$directory$item
+doc_names = document[document[, 'type'] != "image2.gif", 'name']
+document_url <- paste0(base_url, cik_num, filling_number, "/", doc_names)
+document_url 
+
+# get mutiple fillings
+# for (filling in decoded_content$directory$item$name){
+#     filling_url <- paste0(base_url, cik_num, filling, "/index.json")
+#     content <- fromJSON(filling_url)
+#     document <- content$directory$item
+#     doc_names = document[document[, 'type'] != "image2.gif", 'name']
+#     document_url <- paste0(base_url, cik_num, filling_number, "/", doc_names)
+#     print(document_url)
+# }
+```
+
+
+

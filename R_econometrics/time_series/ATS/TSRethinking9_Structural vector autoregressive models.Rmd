@@ -1,0 +1,530 @@
+---
+title: "TSRethinking9 Structural vector autoregressive models"
+author: "Wayne Zhang"
+date: "10/9/2021"
+output:
+  html_document: 
+    toc: yes
+    toc_depth: 4
+    number_sections: true
+---
+\newcommand{\df}[1]{\textbf{Define #1}}
+\newcommand{\remark}{\textbf{Remark}}
+
+# Structural vector autoregressive models
+
+- SVAR models allow for:
+    - contemporaneous variables that may be treated as explanatory variables
+    - specific restrictions on the parameters in the coefficient and residual covariance matrices
+    
+Problem: With the VAR model, errors must have positive definite covariance matrix. This leads to difficulties when trying to evaluate the effect of an independent shock
+
+Pros of SVAR: SVAR models become an indispensable tool for studying relationships and the effects of shocks in macroeconomics
+
+## Basic model
+
+Start off by assuming that each variable is symmetrical. 
+For the two variable case let,
+    - $y_{1,t}$ be affected by current and past realizations of $y_{2,t}$
+    - $y_{2,t}$ be affected by current and past realizations of $y_{1,t}$
+    
+$$\begin{eqnarray}
+y_{1,t} = b_{10} - b_{12} y_{2,t} + \gamma_{11}y_{1,t-1} + \gamma_{12}y_{2,t-1} + \varepsilon_{1,t} \\
+y_{2,t} = b_{20} - b_{21} y_{1,t} + \gamma_{21}y_{1,t-1} + \gamma_{22}y_{2,t-1} + \varepsilon_{2,t}
+\end{eqnarray}$$
+
+- Remark:
+    - where both $y_{1,t}$ and $y_{2,t}$ are stationary
+    - $\varepsilon_{1,t}$ and $\varepsilon_{2,t}$ are white noise and uncorrelated, since we want to identify the effect of each independent shock. Hence covariance elements in $\Sigma_\varepsilon$ are set to zero.
+    - $b_{12}$ describes the contemporaneous effect of a change in $ y_{2,t}$ on $y_{1,t}$.
+    - There will be an indirect contemporaneous effect of $\varepsilon_{1,t}$ on $y_{2,t}$ if $b_{21}\neq 0$ (Just substitute the first equation into the second one will will have that if $b_{21}\neq 0$ the error of first one will affect $y_{2,t}$)
+
+### Standard VAR: Structural Form
+
+To express the above structural-form of the model as a reduced-form expression:
+
+$$B \boldsymbol{y}_t = \Gamma_0 + \Gamma_1 \boldsymbol{y}_{t-1} + \varepsilon_t$$
+
+
+$$B =\left[ \begin{array}{cc}
+1 & b_{12} \\
+b_{21} &1
+\end{array} \right],
+\hspace{0.5cm} \boldsymbol{y}_t = \left[ \begin{array}{c}
+y_{1,t} \\
+y_{2,t}
+\end{array} \right],
+\hspace{0.5cm} \Gamma_0 = \left[ \begin{array}{c}
+b_{10} \\
+b_{20}
+\end{array} \right]$$
+
+$$\Gamma_1 =\left[ \begin{array}{cc}
+\gamma_{11} & \gamma_{12} \\
+\gamma_{21} & \gamma_{22} \\
+\end{array} \right], \hspace{0.5cm}  \text{and   } \;\;
+\varepsilon_t = \left[ \begin{array}{c}
+\varepsilon_{1,t} \\
+\varepsilon_{2,t}
+\end{array} \right]$$
+
+### Standard VAR: Reduced-Form
+
+Premultiplication by $B^{-1}$ gives us the VAR in reduced-form:
+
+$$\boldsymbol{y}_t = A_0 + A_1 \boldsymbol{y}_{t-1} + \boldsymbol{u}_t$$
+
+where $A_0 = B^{-1} \Gamma_0$,  $A_1 = B^{-1}\Gamma_1$  and  $\boldsymbol{u}_t = B^{-1}\varepsilon_t$
+
+$$\begin{eqnarray}
+y_{1,t} = a_{10} + a_{11}y_{1,t-1} + a_{12}y_{2,t-1} + u_{1,t}  \\
+y_{2,t} = a_{20} + a_{21}y_{1,t-1} + a_{22}y_{2,t-1} + u_{2,t}
+\end{eqnarray}$$
+
+By using the relationship
+
+$$\begin{eqnarray}
+\left[ \begin{array}{c}
+u_{1,t} \\
+u_{2,t}
+\end{array} \right]
+=\left[ \begin{array}{cc}
+1 & b_{12} \\
+b_{21} &1
+\end{array} \right]^{-1}
+\left[ \begin{array}{c}
+\varepsilon_{y,t} \\
+\varepsilon_{2,t}
+\end{array} \right]
+\end{eqnarray}$$
+
+We have 
+
+$$\begin{eqnarray}
+u_{1,t} = (\varepsilon_{1,t} - b_{12}\varepsilon_{2,t})/(1-b_{12}b_{21})\\
+u_{2,t} = (\varepsilon_{2,t} - b_{21}\varepsilon_{1,t})/(1-b_{12}b_{21})
+\end{eqnarray}$$
+
+- Remark:
+    - Thus, we know the residuals $u_{1,t}$ and $u_{2,t}$ have zero means, constant variances, and have little autocorrelation
+    - the covariance matrix is 
+
+$$\begin{eqnarray}
+\mathsf{cov} \left[ u_{1,t}, u_{2,t} \right] & = & \mathbb{E}\left[(\varepsilon_{1,t}-b_{12}\varepsilon_{2,t})(\varepsilon_{2,t}-b_{21}\varepsilon_{1,t})\right] / (1-b_{12}b_{21})^2 \\
+& = & -\left[(b_{21}\sigma_1^2 + b_{12} \sigma_{2}^2)\right] / (1-b_{12}b_{21})^2
+\end{eqnarray}$$
+
+Since they are all time invariant, the variance/covariance matrix will be,
+
+$$\Sigma_{\boldsymbol{u}} =\left[ \begin{array}{cc}
+\sigma_{11} & \sigma_{12} \\
+\sigma_{21} & \sigma_{22} \\
+\end{array} \right]$$
+
+
+### Estimate
+
+First we can estimate the reduced form by OLS or MLE, and then the problem will be can we recover the parameter of SVAR structural form by using reduced form?
+
+Unfortunately **not**, since the structural-form contains 10 parameters:
+
+$$b_{10}, b_{20}, \gamma_{11}, \gamma_{12}, \gamma_{21}, \gamma_{22}, b_{12}, b_{21}, \sigma_1, \sigma_2$$
+
+while the reduced-form contains 9 parameters:
+
+$$a_{10}, a_{20}, a_{11}, a_{12}, a_{21}, a_{22}, \mathsf{var}[u_{1,t}], \mathsf{var}[u_{2,t}], \mathsf{cov}[u_{1,t},u_{2,t}]$$
+
+Solution: But If one variable in the structural-form is restricted to a calibrated value then the structural system could be exactly identified
+
+#### Recursive estimation
+
+Suppose that you are willing to assume that $b_{21} = 0$ in the structural system:
+
+$$\begin{eqnarray}
+y_{1,t} = b_{10} - b_{12} y_{2,t} + \gamma_{11}y_{1,t-1} + \gamma_{12}y_{2,t-1} + \varepsilon_{1,t}\\
+y_{2,t} = b_{20} \hspace{1.26cm} + \gamma_{21}y_{1,t-1} + \gamma_{22}y_{2,t-1} + \varepsilon_{2,t}
+\end{eqnarray}$$
+
+$$\begin{eqnarray}
+\text{such that   } \; B^{-1} =\left[ \begin{array}{cc}
+1 & - b_{12} \\
+0 &1
+\end{array} \right]
+\end{eqnarray}$$
+
+Then we have
+
+$$\begin{eqnarray}
+\left[ \begin{array}{c}
+y_{1,t} \\
+y_{2,t}
+\end{array} \right] =
+\left[ \begin{array}{c}
+b_{10}-b_{12}b_{20} \\
+b_{20}
+\end{array} \right] +
+\left[ \begin{array}{cc}
+\gamma_{11} - b_{12} \gamma_{21} & \gamma_{12} - b_{12} \gamma_{22}\\
+\gamma_{21} & \gamma_{22}
+\end{array} \right] \cdot 
+\left[ \begin{array}{c}
+y_{1,t-1} \\
+y_{2,t-1}
+\end{array} \right] +
+\left[ \begin{array}{c}
+\varepsilon_{1,t} -b_{12} \varepsilon_{2,t} \\
+\varepsilon_{2,t}
+\end{array} \right]
+\end{eqnarray}$$
+
+
+-Remark
+    - Hence, by setting $b_{21} = 0$, the shocks from $\varepsilon_{1,t}$ do not effect contemporaneous values of $y_{2,t}$; However, both $\varepsilon_{1,t}$ and $\varepsilon_{2,t}$ affect $y_{1,t}$. This do not mean the variance from $y_{1, t}$, $\varepsilon_{1,t - 1}$,  will not affect $y_{2, t}$, but from $y_{1, t - 1}$
+
+Thus, we have
+
+$$\begin{eqnarray}
+y_{1,t} = a_{10} + a_{11}y_{1,t-1} + a_{12}y_{2,t-1} + u_{1,t} \\
+y_{2,t} = a_{20} + a_{21}y_{1,t-1} + a_{22}y_{2,t-1} + u_{2,t}
+\end{eqnarray}$$
+
+$$\begin{eqnarray}
+\begin{array}{lcl}
+a_{10} = b_{10} - b_{12}b_{20} & \; & a_{11} = \gamma_{11} - b_{12}\gamma_{21} \\
+a_{12} = \gamma_{12} - b_{12}\gamma_{22} & \; & a_{20} = b_{20} \\
+a_{21} = \gamma_{21} & \; & a_{22} = \gamma_{22}
+\end{array}
+\end{eqnarray}$$
+
+$$\begin{eqnarray}
+\begin{array}{l}
+\mathsf{var}[u_1] = \sigma_1^2 + b_{12}^2 \sigma_2^2 \\
+\mathsf{var}[u_2] = \sigma_2^2\\
+\mathsf{cov}[u_1, u_2] = -b_{12}\sigma_2^2
+\end{array}
+\end{eqnarray}$$
+
+This procedure of setting the the lower triangle of the $B$ coefficient matrix equal to zero is termed applying the Cholesky decomposition.
+
+It turns out that the number of restrictions that we need to impose is equivalent to the number of terms in the lower (or upper) triangle of the $B$ matrix, which is $(K^2 - K)/2$
+
+### IRF
+
+#### VMA representation
+
+Just as every stable $AR(p)$ has a $MA(q)$ representation; every $VAR(p)$ has a $VMA(q)$ representation
+
+From:
+
+$$\begin{eqnarray}
+\left[ \begin{array}{c}
+y_{1,t} \\
+y_{2,t}
+\end{array} \right] =
+\left[ \begin{array}{c}
+a_{10} \\
+a_{20}
+\end{array} \right] +
+\left[ \begin{array}{cc}
+a_{11}& a_{12}\\
+a_{21} & a_{22}
+\end{array} \right] \cdot
+\left[ \begin{array}{c}
+y_{1,t-1} \\
+y_{2,t-1}
+\end{array} \right] +
+\left[ \begin{array}{c}
+u_{1,t} \\
+u_{2,t}
+\end{array} \right]
+\end{eqnarray}$$
+
+to 
+
+$$\begin{eqnarray}
+\left[ \begin{array}{c}
+y_{1,t} \\
+y_{2,t}
+\end{array} \right] =
+\left[ \begin{array}{c}
+\mu_1 \\
+\mu_2
+\end{array} \right] + \sum_{i=0}^\infty
+\left[ \begin{array}{cc}
+a_{11}& a_{12}\\
+a_{21} & a_{22}
+\end{array} \right]^i \cdot
+\left[ \begin{array}{c}
+u_{1,t-i} \\
+u_{2,t-i}
+\end{array} \right]
+\end{eqnarray}$$
+
+Where the $\mu$ is the mean of $y_t$
+
+Now since, $\boldsymbol{u}_t = B^{-1}\varepsilon_t$, and where
+
+$$\begin{eqnarray}
+B^{-1} = \frac{1}{\det}
+\left[ \begin{array}{cc}
+ 1 & - b_{12}\\ - b_{21} & 1
+ \end{array} \right] = \frac{1}{1-b_{12}b_{21}}
+\left[ \begin{array}{cc}
+ 1& - b_{12}\\ - b_{21} & 1
+ \end{array} \right]
+\end{eqnarray}$$
+
+We have
+
+$$\begin{eqnarray}
+\left[ \begin{array}{c}
+ u_{1,t} \\ u_{2,t}
+ \end{array} \right] =
+ \frac{1}{1-b_{12}b_{21}} \sum_{i=0}^\infty \cdot
+\left[ \begin{array}{cc}
+ 1& - b_{12}\\ - b_{21} & 1
+ \end{array} \right]
+\left[ \begin{array}{c}
+ \varepsilon_{1,t} \\
+ \varepsilon_{2,t}
+ \end{array} \right]
+\end{eqnarray}$$
+
+Finally, we have MA presentation of SVAR:
+
+$$\begin{eqnarray}
+\left[ \begin{array}{c}
+ y_{1,t} \\ y_{2,t}
+ \end{array} \right] =
+\left[ \begin{array}{c}
+ \mu_1 \\ \mu_2
+ \end{array} \right] + \frac{1}{1-b_{12}b_{21}} \sum_{i=0}^\infty
+\left[ \begin{array}{cc}
+ a_{11}& a_{12}\\ a_{21} & a_{22}
+ \end{array} \right]^i \cdot
+\left[ \begin{array}{cc}
+ 1& - b_{12}\\ - b_{21} & 1
+ \end{array} \right]
+\left[ \begin{array}{c}
+ \varepsilon_{1,t-i} \\ \varepsilon_{2,t-i}
+ \end{array} \right]
+\end{eqnarray}$$
+
+This expression may be used to describe the effect of a shock in $\varepsilon_t$ on the endogenous variables.
+
+The impact multipliers, which describe the effect of shocks on the endogenous variables, are summarised in matrix $\Theta_i$:
+
+$$\begin{eqnarray}
+\Theta_i =
+\left[ \begin{array}{cc}
+\theta_{11}& \theta_{12}\\ \theta_{21}& \theta_{22}
+\end{array} \right]_i
+= \frac{a_1^i}{1-b_{12}b_{21}}
+\left[ \begin{array}{cc}
+1& - b_{12}\\ - b_{21} & 1
+\end{array} \right]
+\end{eqnarray}$$
+
+Thus, 
+
+$$\boldsymbol{y}_t = \mu +  \sum_{i=0}^\infty \Theta_i \varepsilon_{t-i}$$
+
+- For example, where the numbers in brackets refer to the lags of $\theta_{jk}(i)$:
+    - $\theta_{12}(0)$ is the instant impact of 1 unit change in $\varepsilon_{2,t}$ on $y_{1,t}$
+    - $\theta_{11}(1)$ is the instant impact of 1 unit change in $\varepsilon_{1,t-1}$ on $y_{1,t}$
+    - $\theta_{12}(1)$ is the instant impact of 1 unit change in $\varepsilon_{2,t-1}$ on $y_{1,t}$
+    
+## Emperical example
+
+### test data
+
+```{r package, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(fig.width = 8, fig.height = 4)
+rm(list = ls())
+library(mFilter)
+library(tidyverse)
+library(vars)
+library(FinCal)
+library(zoo)
+```
+
+```{r}
+rgdp <- fred("GDPC1", "1990-01-01", "2008-12-31")[, -1]
+y <- ts(log(rgdp$price), start = c(1990, 1), freq = 4)
+cpi <- fred("CPALTT01USM657N", "1990-01-01", "2008-12-31")[, -1] %>% 
+    mutate(date2 = as.yearqtr(date)) %>% 
+    group_by(date2) %>% 
+    summarise(price2 = mean(price))
+pi <- ts(cpi$price2, start = c(1990, 1), freq = 4)
+LTR <- fred("IRLTLT01USA156N", "1990-01-01", "2008-12-31")[, -1]
+i.tmp <- rep((1 + (LTR$price/100))^0.25 - 1, each = 4) # quarterly interest rate
+i <- ts(i.tmp*100, start = c(1990, 1), freq = 4)
+plot(cbind(y, pi, i))
+```
+
+
+For rgdp, there is a time trend rather than a unit root, we can test it using unit root test, after removing the deterministic trend. To remove the trend we can consider linear regression (i.e. we think this trend is linear)
+
+```{r}
+lin.mod <- lm(y ~ time(y))
+lin.trend <- lin.mod$fitted.values
+linear <- ts(lin.trend, start = c(1990, 1), freq = 4)
+lin.cycle <- y - linear
+# then we need to test after trend there is unit root characteristics or not
+# DF test
+adf.lin <- ur.df(lin.cycle, type = "none", selectlags = c("AIC"))
+summary(adf.lin) # we cannot reject the null hypothesis as -0.5728 > -1.61
+
+# then we rebuild the model:
+rm(list = ls())
+rgdp <- fred("GDPC1", "1990-01-01", "2007-12-31")[, -1]
+y <- ts(log(rgdp$price), start = c(1990, 1), freq = 4)
+cpi <- fred("CPALTT01USM657N", "1990-01-01", "2007-12-31")[, -1] %>% 
+    mutate(date2 = as.yearqtr(date)) %>% 
+    group_by(date2) %>% 
+    summarise(price2 = mean(price))
+pi <- ts(cpi$price2, start = c(1990, 1), freq = 4)
+LTR <- fred("IRLTLT01USA156N", "1990-01-01", "2007-12-31")[, -1]
+i.tmp <- rep((1 + (LTR$price/100))^0.25 - 1, each = 4) # quarterly interest rate
+i <- ts(i.tmp*100, start = c(1990, 1), freq = 4)
+lin.mod <- lm(y ~ time(y))
+lin.trend <- lin.mod$fitted.values
+linear <- ts(lin.trend, start = c(1990, 1), freq = 4)
+lin.cycle <- y - linear
+adf.lin <- ur.df(lin.cycle, type = "none", selectlags = c("AIC"))
+summary(adf.lin)  # now test-statistic is -2.1141 < -1.95
+# Thus, no unit root
+plot(lin.cycle) # this plot has two sharply drop 1990 & 2000
+# take account to this
+
+dum90 <- rep(0, length(y))
+dum90[3] <- 1
+dum00 <- rep(0, length(y))
+dum00[42] <- 1
+dum90 <- ts(dum90, start = c(1990, 1), freq = 4)
+dum00 <- ts(dum00, start = c(1990, 1), freq = 4)
+dum <- cbind(dum90, dum00)
+colnames(dum) <- c("dum90", "dum00")
+```
+
+### Model estimation - with standard form of Cholesky decomposition
+    
+Remark:
+    - This ordering is consistent with macroeconomic theory and often applied in a closed-economy setting. 
+    - Instead of using the linear cycle, we’re going to use the natural logarithm of GDP. This would imply that we would need to include a deterministic trend in the model, to account for this time trend.
+
+```{r}
+data <- cbind(y, pi, i)
+colnames(data) <- c("y", "pi", "i")
+info.var <- VARselect(data, lag.max = 12, type = "both")
+info.var$selection
+# we will choose VAR(1)
+
+# We will estimate the reduced-form VAR and recover structural-form
+# and most importantly we need to add deterministic time trend and a constant in this model type = "both" and the exogenous dummies
+var.est1 <- VAR(data, p = 1, type = "both", season = NULL, exogen = dum)
+summary(var.est1)
+```
+
+#### SVAR 
+
+Note the coefficients clearly show that we have included both a time trend and a constant, while the variance-covariance of the residuals shows that we have included covariance terms in the reduced-form model.
+
+- set-up the matrix for the contemporaneous coefficients (Restriction) 
+
+MA presentation of VAR(2):
+$$\begin{eqnarray}
+\left[ \begin{array}{c}
+ y_{1,t} \\ y_{2,t}
+ \end{array} \right] =
+\left[ \begin{array}{c}
+ \mu_1 \\ \mu_2
+ \end{array} \right] + \frac{1}{1-b_{12}b_{21}} \sum_{i=0}^\infty
+\left[ \begin{array}{cc}
+ a_{11}& a_{12}\\ a_{21} & a_{22}
+ \end{array} \right]^i \cdot
+\left[ \begin{array}{cc}
+ 1& - b_{12}\\ - b_{21} & 1
+ \end{array} \right]
+\left[ \begin{array}{c}
+ \varepsilon_{1,t-i} \\ \varepsilon_{2,t-i}
+ \end{array} \right]
+\end{eqnarray}$$
+
+Using Cholesky decomposition on the matrix of contemporaneous parameters:
+    - Only shocks to output can shift output contemporaneously. a[1, 2], a[1, 3] = 0
+    - Only shocks to output and inflation can shift inflation contemporaneously. a[2, 3] = 0
+    - All shocks can affect the interest rate contemporaneously.
+
+
+To code this appropriately we need to insert zeros for restrictions and NA in all those places that would not pertain to a restriction. Hence,
+
+
+
+```{r}
+a.mat <- diag(3)
+diag(a.mat) <- NA
+a.mat[2, 1] <- NA
+a.mat[3, 1] <- NA
+a.mat[3, 2] <- NA
+print(a.mat)
+```
+
+- set-up the matrix for the identification of individual shocks. 
+
+In order to separate the effect, we will set covariance position to be 0.
+
+Once again starting with the diagnol matrix, we need to insert zeros into the covariance terms, while the variance for each of the individual shocks is to be retrieved. Hence,
+
+```{r}
+b.mat <- diag(3)
+diag(b.mat) <- NA
+print(b.mat)
+```
+
+```{r}
+svar.one <- SVAR(var.est1, Amat = a.mat, Bmat = b.mat, max.iter = 10000, 
+    hessian = TRUE) # if this model is just identified then there will be a warning, we can close it by adding `irtest = F`
+svar.one
+```
+
+The results would suggest that both matrices have the correct functional form.
+
+### Impulse response functions
+
+ The first of these considers the response of interest rates to an individual interest rate shock.
+ 
+```{r, warning=FALSE}
+one.int <- irf(svar.one, response = "i", impulse = "i", 
+    n.ahead = 40, ortho = TRUE, boot = TRUE)
+plot(one.int)
+```
+
+Note that as is to be expected, interest rate shocks are relatively persistent. 
+
+The response of output to an interest rate shock could then be generated.
+
+```{r, warning=FALSE}
+one.gdp <- irf(svar.one, response = "y", impulse = "i", 
+    n.ahead = 40, ortho = TRUE, boot = TRUE)
+plot(one.gdp)
+```
+
+In this case, output declines following an interest rate shock. However, as the upper confidence interval remains at a value of zero, it would imply that the effect of the shock may not be significantly different from zero.
+
+
+Then lastly we consider the effect of the interest rate shock on inflation.
+
+```{r, warning=FALSE}
+one.inf <- irf(svar.one, response = "pi", impulse = "i", 
+    n.ahead = 40, ortho = TRUE, boot = TRUE)
+plot(one.inf)
+```
+
+Hence, these impulse response functions suggest that a contractionary monetary policy shock:
+
+- increases the interest rate temporarily
+- has a temporary negative effect on GDP
+- has a temporary positive effect on inflation
+
+

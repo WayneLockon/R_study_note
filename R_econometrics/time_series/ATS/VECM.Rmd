@@ -1,0 +1,61 @@
+---
+title: "Untitled"
+author: "Wayne Zhang"
+date: '2022-02-27'
+output: html_document
+---
+
+```{r}
+library(tsDyn)
+library(vars)
+library(tidyverse)
+library(forecast)
+library(xts)
+library(anytime)
+
+data <- read_csv("/Users/waynezhang/Downloads/VECM_LectureNotes.csv")
+
+dset <- xts(data[, c("lnCPI", "lnGDP", "lnM3")], order.by = as.Date.character(data$Date, format = "%m/%d/%y"))
+
+colnames(dset) <- c("CPI", "GDP", "M3")
+
+# select the order of VAR model
+
+VARselect(dset, type = "const")
+
+# here the optimal lags mainly are 5 but consider the difference term;
+# we choose 5 - 1 = 4
+
+# cointegration test
+ctest1t <- ca.jo(dset, type = "trace", ecdet = "const", K = 4) 
+summary(ctest1t) # result indicate it's I(1) series
+
+ctest1e <- ca.jo(dset, type = "eigen", ecdet = "const", K = 4)
+summary(ctest1e)
+
+# build VECM model
+
+model1 <- VECM(dset, lag = 4, r = 1, estim = "ML") # r is the order of cointegration
+summary(model1) # ECT are long run effect and other are short-run effect
+
+# test the model
+
+model1VAR <- vec2var(ctest1t, r = 1)
+
+# serial correlation
+serial.test(model1VAR, lags.pt = 5, type = "PT.asymptotic")
+
+# ARCH effect
+
+arch.test(model1VAR, lags.multi = 15, multivariate.only = T) # p-value = 1 no arch effect
+
+# normality of residuals
+
+normality.test(model1VAR, multivariate.only = T)
+
+# Impulse response function
+
+M3irf <- irf(model1VAR, impulse = "GDP", response = "M3", n.ahead = 20, boot = T)
+plot(M3irf)
+```
+

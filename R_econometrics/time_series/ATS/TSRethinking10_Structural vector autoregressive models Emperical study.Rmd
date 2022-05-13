@@ -1,0 +1,105 @@
+---
+title: "TSRethinking10 Structural vector autoregressive models Emperical study"
+author: "Wayne Zhang"
+date: "10/9/2021"
+output:
+  html_document: 
+    toc: yes
+    toc_depth: 4
+    number_sections: true
+---
+\newcommand{\df}[1]{\textbf{Define #1}}
+\newcommand{\remark}{\textbf{Remark}}
+
+The structural form of SVAR will be:
+
+$$y_t = ay_t + A_1^*y_{t - 1} + \cdots + A_p^*y_{t - p} + u_t$$
+
+And rewrite this we have
+
+$$(1 - a)y_t = A_1^*y_{t - 1} + \cdots + A_p^*y_{t - p} + u_t$$
+
+$$y_t = (1 - a)^{-1}A_1^*y_{t - 1} + \cdots + (1 - a)^{-1} A_p^*y_{t - p} + (1 - a)^{-1}u_t$$
+
+def $A_i := (1 - A)^{-1}A_i^*$
+
+We have :
+
+$$y_t = A_1y_{t - 1} + \cdots + A_p y_{t - p} + \varepsilon_t$$
+
+$$(I_K - A_1 L - A_2L^2 - \cdots- A_pL^p)y_t = \varepsilon_t$$
+
+
+Here, we cannot estimate reduced-form VAR and recover to structural model, so we need to specify structural matrix 
+
+$$A = 
+\begin{bmatrix}
+1 & 0 & \cdots & 0 \\
+a_{21} & 1 &  & 0 \\
+\vdots & &  \ddots & \vdots  \\
+a_{K1} & a_{K2} & \cdots & 1 \\
+\end{bmatrix}$$
+
+**Remark** `A` should at least contains $\frac{K(K - 1)}{2}$ of 0.
+
+$$A(I_K - A_1 L - A_2L^2 - \cdots- A_pL^p)y_t = A\varepsilon_t$$
+
+By Cholesky decomposition(because this matrix is PD), we have 
+
+$$Var(\varepsilon_t) = \Sigma_\varepsilon = U'U$$
+
+$U$ is upper trianguler matrix, then define: $e_t := (U')^{-1}\varepsilon_t; B:= AU'$
+
+we have $e_t \sim N(0, I_K)$
+
+The short-run SVAR model without exogenous variables can be written as:
+
+$$A(I_K - A_1 L - A_2L^2 - \cdots- A_pL^p)y_t = A\varepsilon = Be_t$$
+
+```{r loadingPackage, warning=FALSE, message=FALSE}
+library(FinCal)
+library(tidyverse)
+library(vars)
+library(zoo)
+```
+
+
+```{r}
+data1 <- stata("use https://www.stata-press.com/data/r17/lutkepohl2\n list qtr", data.out = T) %>% 
+    filter(qtr <= 76)
+head(data1)
+
+A <- diag(3)
+A[lower.tri(A)] <- NA
+A
+B <- diag(3)
+diag(B) <- NA
+B
+var.est1 <- data.frame(data1$dln_inv, data1$dln_inc, data1$dln_consump) %>% 
+    drop_na() %>% 
+    VAR(., p = 1, type = "const", season = NULL)
+svar_model <- SVAR(var.est1, Amat = A, Bmat = B, max.iter = 10000)
+
+svar_model
+
+A_hat <- svar_model$A
+B_hat <- svar_model$B
+solve(A_hat) %*% B_hat %*% t(B_hat) %*% t(solve(A_hat))
+svar_model$Sigma.U
+
+solve(A_hat) %*% B_hat # U
+
+d("use https://www.stata-press.com/data/r17/lutkepohl2")
+d("matrix A = (1,0,0\\ .,1,0\\ .,.,1)")
+d("matrix B = (.,0,0\\ 0,.,0\\ 0,0,.)")
+d("svar dln_inv dln_inc dln_consump if qtr<=tq(1978q4), aeq(A) beq(B)")
+d("matrix Aest = e(A)")
+d("matrix Best = e(B)")
+d("matrix chol_est = inv(Aest)*Best") #U
+d("matrix list chol_est")
+d("matrix sig_var = e(Sigma)")
+d("matrix list sig_var")
+d("matrix chol_var = cholesky(sig_var)")
+d("matrix list chol_var", output = T)
+```
+
